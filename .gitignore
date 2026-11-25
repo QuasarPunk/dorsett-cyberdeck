@@ -1,0 +1,49 @@
+# Archivos de entorno y configuración local privada
+.env
+.env.*
+!.env.example
+*.env
+!*.env.example
+software/config/*.env
+!software/config/*.env.example
+
+# Credenciales, claves y perfiles exportados
+*.key
+*.pem
+*.psk
+*.secret
+*.nmconnection
+secrets/
+credentials/
+id_rsa*
+id_ed25519*
+
+# Informes de diagnóstico locales y auditorías sin revisar
+docs/audits/local/
+diagnostics/
+*-diagnostics-*.md
+*.diag.md
+
+# Logs y salidas temporales
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.swp
+*~
+/tmp/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Editores y sistema operativo
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

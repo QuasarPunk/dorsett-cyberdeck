@@ -1,0 +1,66 @@
+# Changelog
+
+El formato de este archivo está inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue la convención de [Semantic Versioning](https://semver.org/lang/es/).
+
+> **Nota sobre trazabilidad:** los hitos `v0.1.0` a `v0.3.0` han sido reconstruidos retrospectivamente a partir de la bitácora histórica del proyecto y de la auditoría técnica del 24 de noviembre de 2026, sin inventar fechas de publicación ni etiquetas Git inexistentes. La versión `v0.4.0` permanece bajo `[Unreleased]` hasta completar las pruebas físicas y contar con autorización del propietario.
+
+---
+
+## [Unreleased] — v0.4.0 Nomad Update
+
+### Added
+
+- Reestructuración integral del repositorio bajo la jerarquía `docs/`, `software/`, `tests/`, `hardware/`, `firmware/` y `assets/`.
+- Memoria técnica permanente en `docs/TECHNICAL_CONTEXT.md` con clasificación explícita de estados (`CONFIRMED`, `REPORTED`, `IMPLEMENTED`, `PLANNED`, `UNKNOWN`).
+- Registro histórico de auditoría técnica en `docs/audits/2026-11-24-system-audit.md`.
+- Instrucciones permanentes para agentes de IA y colaboradores en `AGENTS.md`.
+- Hoja de ruta evolutiva en `ROADMAP.md` y propuesta de licencia MIT en `LICENSE`.
+- Decisión de arquitectura `docs/decisions/ADR-001-network-modes.md` que define los modos `HOME`, `MOBILE` y `NOMAD`.
+- Documentación técnica de arquitectura, redes, instalación/recuperación, seguridad y resolución de problemas en `docs/`.
+- Script de gestión de red `software/scripts/dorsett-network.sh` con soporte para `status`, `fallback`, `home`, `mobile`, `nomad`, `confirm`, `rollback`, `--dry-run`, bloqueo concurrente y protección para sesiones remotas.
+- Script de aprovisionamiento `software/scripts/setup-hotspot.sh` para crear el perfil `Dorsett-AP` sin activarlo automáticamente.
+- Sistema de diagnóstico read-only y sanitizado `software/scripts/collect-diagnostics.sh`.
+- Unidad de servicio `software/systemd/dorsett-fallback.service` para selección de respaldo al arranque.
+- Plantilla de configuración externalizada `software/config/network.env.example` y exclusiones de seguridad en `.gitignore`.
+- Plan de pruebas `tests/network-test-plan.md` (escenarios T01–T19) y suite automatizada `tests/test-network.sh` basada en *mocks* de `nmcli`.
+
+### Changed
+
+- Reescritura y saneamiento de `README.md`: eliminación de texto conversacional residual, corrección de bloques Markdown, separación entre autonomía de red y energética, y sanitización de identificadores personales.
+
+---
+
+## [0.3.0] — Network Stability (Hito histórico reconstruido)
+
+### Changed
+
+- Auditoría de perfiles Wi-Fi en `NetworkManager` para mitigar asociaciones erráticas a redes secundarias al arrancar.
+- Configuración y confirmación de prioridad de autoconexión `100` en el perfil doméstico autorizado.
+
+### Fixed
+
+- Recuperación de visibilidad en subred local (`192.168.1.52/24`) para restablecer el acceso SSH (`22`) y TightVNC (`5901`).
+
+### Audit
+
+- Auditoría técnica ejecutada sobre la Raspberry Pi 5 real el 24 de noviembre de 2026 (confirmando Debian 13.6 ARM64, NetworkManager 1.52.1, capacidades `iw list` y servicios activos).
+
+---
+
+## [0.2.0] — Local Network Ecosystem (Hito histórico reconstruido)
+
+### Added
+
+- Implementación del servicio Samba (`smbd`, TCP `445`) como NAS local con directorio compartido (`~/compartido`).
+- Integración de flujos de compartición e intercambio de archivos entre Raspberry Pi 5, Tablet Windows 8.1, PC de escritorio y smartphone Android dentro de la LAN local.
+
+---
+
+## [0.1.0] — Remote Access Foundation (Hito histórico reconstruido)
+
+### Added
+
+- Configuración inicial de Linux ARM64 en Raspberry Pi 5 (`raspi-ali`).
+- Habilitación de administración remota por `ssh` (TCP `22`).
+- Despliegue de segunda instancia de `WayVNC` en TCP `5901` (`0.0.0.0:5901`) compatible con TightVNC Viewer en Windows 8.1 de 32 bits, preservando la instancia secundaria en TCP `5900`.
+- Creación de `~/start-vnc.sh` y unidad de usuario `~/.config/systemd/user/wayvnc-lan.service` con persistencia reportada vía `loginctl enable-linger`.

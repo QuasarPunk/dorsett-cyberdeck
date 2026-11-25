@@ -1,0 +1,25 @@
+[Unit]
+Description=Dorsett Autonomous Network Fallback (v0.4.0 Nomad Update)
+Documentation=https://github.com/QuasarPunk/dorsett-cyberdeck
+After=NetworkManager.service
+Requires=NetworkManager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=90
+Restart=no
+ExecStart=/usr/local/bin/dorsett-network --config /etc/dorsett/network.env fallback
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dorsett-fallback
+
+# Endurecimiento compatible con D-Bus / NetworkManager / /etc/dorsett
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run /var/run
+
+[Install]
+WantedBy=multi-user.target
