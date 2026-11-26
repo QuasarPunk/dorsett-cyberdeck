@@ -147,6 +147,10 @@ dorsett-cyberdeck/
 3. Antes de desplegar cambios en la Raspberry Pi 5 real, revisa [docs/SECURITY.md](docs/SECURITY.md), [docs/INSTALLATION.md](docs/INSTALLATION.md) y [tests/network-test-plan.md](tests/network-test-plan.md).
 4. Si encuentras anomalías (como advertencias en WayVNC o problemas de DHCP), consulta [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) y ejecuta `software/scripts/collect-diagnostics.sh`.
 
+## Instalación en Raspberry Pi
+
+Desde la raíz de la copia del repositorio en la Pi, ejecuta `bash install.sh --check` y luego `sudo bash install.sh`. Configura el perfil HOME local y valida el AP con recuperación temporizada antes de habilitar el fallback. [Guía de instalación y prueba](docs/INSTALLATION.md)
+
 ---
 
 ## Roadmap resumido

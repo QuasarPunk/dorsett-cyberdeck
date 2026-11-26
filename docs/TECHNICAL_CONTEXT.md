@@ -147,6 +147,8 @@ Estado observado mediante `nmcli device status` e `ip` el `2026-11-24`:
 
 ### Rutas previstas para despliegue controlado (`v0.4.0`) — `IMPLEMENTED` / no desplegadas aún
 
+`bash install.sh --check` comprueba los requisitos de la Pi. `sudo bash install.sh` instala las copias de sistema y conserva el contenido de `network.env` en actualizaciones. El propietario registra HOME con el nombre exacto y puede dejar `MOBILE_PROFILE=""`. El aprovisionamiento de NOMAD guarda la PSK en NetworkManager con el historial del editor bloqueado. La habilitación del fallback queda para después de la prueba manual. [Procedimiento de despliegue](INSTALLATION.md)
+
 - `/usr/local/bin/dorsett-network`
 - `/usr/local/sbin/dorsett-setup-hotspot`
 - `/usr/local/bin/dorsett-collect-diagnostics` *(opcional recomendado)*

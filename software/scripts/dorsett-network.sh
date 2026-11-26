@@ -27,7 +27,7 @@ CONFIG_FILE="${DORSETT_CONFIG:-$DEFAULT_CONFIG}"
 
 WIFI_INTERFACE="wlan0"
 HOME_PROFILE="home-profile"
-MOBILE_PROFILE="mobile-profile"
+MOBILE_PROFILE=""
 AP_PROFILE="Dorsett-AP"
 AP_SSID="Dorsett-AP"
 AP_ADDRESS="10.42.0.1/24"
@@ -111,7 +111,6 @@ is_nonneg_int() {
 validate_config() {
     [[ "$WIFI_INTERFACE" =~ ^[a-zA-Z0-9_.-]+$ ]] || die "$EXIT_USAGE" "WIFI_INTERFACE inválido: $WIFI_INTERFACE"
     [[ -n "$HOME_PROFILE" ]] || die "$EXIT_USAGE" "HOME_PROFILE no puede estar vacío"
-    [[ -n "$MOBILE_PROFILE" ]] || die "$EXIT_USAGE" "MOBILE_PROFILE no puede estar vacío"
     [[ -n "$AP_PROFILE" ]] || die "$EXIT_USAGE" "AP_PROFILE no puede estar vacío"
     [[ "$AP_ADDRESS" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$ ]] || die "$EXIT_USAGE" "AP_ADDRESS CIDR inválido: $AP_ADDRESS"
     is_nonneg_int "$FALLBACK_TIMEOUT" || die "$EXIT_USAGE" "FALLBACK_TIMEOUT inválido: $FALLBACK_TIMEOUT"
@@ -660,7 +659,10 @@ main() {
         status) cmd_status ;;
         fallback) cmd_fallback ;;
         home) switch_mode_manual "HOME" "$HOME_PROFILE" ;;
-        mobile) switch_mode_manual "MOBILE" "$MOBILE_PROFILE" ;;
+        mobile)
+            [[ -n "$MOBILE_PROFILE" ]] || die "$EXIT_PROFILE_MISSING" "MOBILE todavía no está configurado."
+            switch_mode_manual "MOBILE" "$MOBILE_PROFILE"
+            ;;
         nomad) switch_mode_manual "NOMAD" "$AP_PROFILE" ;;
         confirm) cmd_confirm ;;
         rollback) cmd_rollback ;;

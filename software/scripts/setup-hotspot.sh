@@ -29,7 +29,6 @@ NMCLI_TIMEOUT="20"
 DRY_RUN=0
 UPDATE_EXISTING=0
 ACTIVATE_AFTER=0
-ASK_INTERACTIVE=0
 
 NMCLI_BIN="${DORSETT_NMCLI_BIN:-nmcli}"
 IP_BIN="${DORSETT_IP_BIN:-ip}"
@@ -58,7 +57,7 @@ sin activarlo automáticamente por defecto.
 Opciones:
   --config <ruta>    Ruta a network.env (por defecto /etc/dorsett/network.env).
   --update           Actualiza el perfil existente si ya existe en NetworkManager.
-  --ask              Delega la entrada interactiva de contraseña directamente a nmcli --ask.
+  --ask              Solicita la contraseña de forma interactiva (comportamiento predeterminado).
   --activate         Activa el AP al finalizar mediante dorsett-network (requiere protección remota).
   --dry-run          Simula validaciones y comandos sin modificar NetworkManager.
   -h, --help         Muestra esta ayuda.
@@ -150,13 +149,13 @@ check_subnet_conflict() {
 prompt_wpa_passphrase() {
     local psk1 psk2
     while true; do
-        read -r -s -p "Ingresa contraseña WPA2-PSK para '$AP_SSID' (mín. 8 caracteres, rec. >=12): " psk1
+        IFS= read -r -s -p "Ingresa contraseña WPA2-PSK para '$AP_SSID' (mín. 8 caracteres, rec. >=12): " psk1 || return 1
         printf '\n' >&2
         if [[ "${#psk1}" -lt 8 ]] || [[ "${#psk1}" -gt 63 ]]; then
             log_msg "WARN" "La contraseña debe tener entre 8 y 63 caracteres."
             continue
         fi
-        read -r -s -p "Confirma la contraseña WPA2-PSK: " psk2
+        IFS= read -r -s -p "Confirma la contraseña WPA2-PSK: " psk2 || return 1
         printf '\n' >&2
         if [[ "$psk1" != "$psk2" ]]; then
             log_msg "WARN" "Las contraseñas no coinciden. Intenta nuevamente."
@@ -170,11 +169,20 @@ prompt_wpa_passphrase() {
     done
 }
 
-apply_ap_security_stdin() {
-    local psk="$1"
-    printf 'set 802-11-wireless-security.key-mgmt wpa-psk\nset 802-11-wireless-security.proto rsn\nset 802-11-wireless-security.pairwise ccmp\nset 802-11-wireless-security.group ccmp\nset 802-11-wireless-security.psk %s\nsave\nquit\n' "$psk" \
-        | LC_ALL=C "$NMCLI_BIN" connection edit "$AP_PROFILE" >/dev/null
-}
+apply_ap_security_stdin() (
+    set +x
+    local psk saved_psk
+    psk="$(prompt_wpa_passphrase)" || die "$EXIT_GENERAL" "Entrada de contraseña cancelada. Reintenta con --update."
+    # nmcli guarda el historial del editor bajo XDG_CACHE_HOME.
+    if ! printf 'set 802-11-wireless-security.key-mgmt wpa-psk\nset 802-11-wireless-security.proto rsn\nset 802-11-wireless-security.pairwise ccmp\nset 802-11-wireless-security.group ccmp\nset 802-11-wireless-security.psk %s\nsave\nquit\n' "$psk" \
+        | XDG_CACHE_HOME=/dev/null run_nmcli connection edit "$AP_PROFILE" >/dev/null 2>&1; then
+        die "$EXIT_GENERAL" "Falló el guardado de la seguridad WPA2. Reintenta con --update."
+    fi
+    saved_psk="$(run_nmcli --show-secrets --escape no -g 802-11-wireless-security.psk connection show "$AP_PROFILE" 2>/dev/null)" \
+        || die "$EXIT_GENERAL" "No se pudo verificar la contraseña guardada. Reintenta con --update."
+    [[ "$saved_psk" == "$psk" ]] \
+        || die "$EXIT_GENERAL" "La contraseña guardada difiere de la ingresada. Reintenta con --update y evita espacios al inicio o al final."
+)
 
 configure_profile() {
     local exists=0
@@ -184,6 +192,13 @@ configure_profile() {
 
     if [[ "$exists" -eq 1 ]] && [[ "$UPDATE_EXISTING" -eq 0 ]]; then
         log_msg "INFO" "El perfil '$AP_PROFILE' ya existe. No se crean duplicados (usa --update si deseas reconfigurarlo)."
+        if [[ "$DRY_RUN" -eq 0 ]]; then
+            validate_final_profile
+            ( set +x
+              saved_psk="$(run_nmcli --show-secrets -g 802-11-wireless-security.psk connection show "$AP_PROFILE" 2>/dev/null)" \
+                  && [[ -n "$saved_psk" && "$saved_psk" != '--' ]]
+            ) || die "$EXIT_GENERAL" "El perfil existente carece de una contraseña verificable. Usa --update."
+        fi
         return 0
     fi
 
@@ -217,20 +232,7 @@ configure_profile() {
         ipv4.addresses "$AP_ADDRESS" \
         ipv6.method disabled >/dev/null
 
-    if [[ "$ASK_INTERACTIVE" -eq 1 ]]; then
-        log_msg "INFO" "Solicitando contraseña WPA2 de forma interactiva mediante nmcli --ask..."
-        LC_ALL=C "$NMCLI_BIN" --ask connection modify "$AP_PROFILE" \
-            wifi-sec.key-mgmt wpa-psk \
-            wifi-sec.proto rsn \
-            wifi-sec.pairwise ccmp \
-            wifi-sec.group ccmp \
-            wifi-sec.psk ""
-    else
-        local psk
-        psk="$(prompt_wpa_passphrase)"
-        apply_ap_security_stdin "$psk"
-        unset psk
-    fi
+    apply_ap_security_stdin
 
     validate_final_profile
 }
@@ -266,7 +268,6 @@ parse_args() {
                 shift
                 ;;
             --ask)
-                ASK_INTERACTIVE=1
                 shift
                 ;;
             --activate)

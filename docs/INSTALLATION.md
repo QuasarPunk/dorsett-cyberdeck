@@ -1,149 +1,112 @@
-# Guía de Instalación Controlada y Recuperación — Dorsett v0.4.0
+# Instalación controlada de Dorsett v0.4.0
 
-> **ADVERTENCIA DE SEGURIDAD OPERACIONAL:** este procedimiento está diseñado para ejecutarse sobre una Raspberry Pi 5 *headless*. **No habilites `dorsett-fallback.service` ni ejecutes transiciones de red en caliente sin haber verificado primero el mecanismo de recuperación y realizado las comprobaciones previas.**
+La instalación se realiza sobre Debian 13 ARM64 con NetworkManager activo. La plataforma de referencia es Raspberry Pi 5 con Debian 13.6 y NetworkManager 1.52.1. Antes de cambiar de modo, comprueba un acceso de rescate por Ethernet independiente de `wlan0` o una consola física. Mantén el router HOME disponible durante toda la prueba manual.
 
----
+## 1. Instalar desde la copia del repositorio
 
-## 1. Requisitos previos en la Raspberry Pi 5
-
-Confirmado en auditoría del `2026-11-24`:
-
-- Debian GNU/Linux 13 (`trixie`) ARM64.
-- `NetworkManager` `1.52.1` activo.
-- `dnsmasq` instalado (`/usr/sbin/dnsmasq`).
-- `systemd`, `flock` (`util-linux`), `iproute2`, `iw`.
-
----
-
-## 2. Comprobaciones previas (Solo lectura)
-
-Antes de copiar scripts o crear el perfil AP, ejecuta en la Raspberry Pi:
-
-1. **Capturar diagnóstico inicial sanitizado** (opcional desde copia local del repo):
-   ```bash
-   bash software/scripts/collect-diagnostics.sh
-   ```
-2. **Verificar Netplan vs NetworkManager** (imprescindible por el prefijo `netplan-` observado):
-   ```bash
-   ls -la /etc/netplan/
-   sudo cat /etc/netplan/*.yaml 2>/dev/null || true
-   nmcli -f NAME,UUID,TYPE,DEVICE,AUTOCONNECT,AUTOCONNECT-PRIORITY connection show
-   ```
-3. **Verificar persistencia de WayVNC y reglas de firewall:**
-   ```bash
-   loginctl show-user "$USER" -p Linger
-   sudo nft list ruleset 2>/dev/null || sudo iptables -L -n 2>/dev/null || true
-   ```
-4. **Confirmar que no hay conflicto con la subred `10.42.0.0/24`:**
-   ```bash
-   ip -4 addr show
-   ip route
-   ```
-
----
-
-## 3. Instalación de archivos en rutas de sistema
-
-No ejecutes `dorsett-fallback.service` apuntando directamente a scripts dentro de un directorio de usuario modificable. Instala copias propiedad de `root`:
+Copia a la Pi la revisión que contiene `install.sh` y abre una terminal en la raíz de esa copia. Desde allí ejecuta:
 
 ```bash
-sudo install -d -m 0755 /etc/dorsett
-sudo install -m 0755 software/scripts/dorsett-network.sh /usr/local/bin/dorsett-network
-sudo install -m 0755 software/scripts/setup-hotspot.sh /usr/local/sbin/dorsett-setup-hotspot
-sudo install -m 0755 software/scripts/collect-diagnostics.sh /usr/local/bin/dorsett-collect-diagnostics
-sudo install -m 0644 software/systemd/dorsett-fallback.service /etc/systemd/system/dorsett-fallback.service
-sudo install -m 0600 software/config/network.env.example /etc/dorsett/network.env
+bash install.sh --check
+sudo bash install.sh
+sudoedit /etc/dorsett/network.env
 ```
 
----
+El instalador comprueba la plataforma, las herramientas requeridas y el soporte AP de `wlan0`. Copia los scripts y la unidad como `root:root`, preserva el contenido de una configuración existente con permisos `0600` y recarga las definiciones de systemd. La conexión activa y el estado de habilitación del servicio se conservan.
 
-## 4. Configuración de `/etc/dorsett/network.env`
+Toma de la lista de perfiles que imprime el instalador el nombre exacto del perfil HOME (Wi-Fi, prioridad 100). El perfil de referencia tiene el prefijo `netplan-wlan0-`. Sustituye `home-profile` en `HOME_PROFILE="home-profile"` por ese nombre, manteniendo las comillas. Deja `MOBILE_PROFILE=""` hasta registrar el hotspot del teléfono. Guarda únicamente valores de configuración. La contraseña WPA2 se configura por separado en NetworkManager.
 
-Edita `/etc/dorsett/network.env` con los nombres exactos de los perfiles de tu Raspberry Pi (obtenidos con `nmcli -f NAME connection show`), manteniendo permisos estrictos (`0600`, propietario `root:root`):
+Comprueba que `detected_mode=HOME`, que `wlan0` tiene IPv4, que la subred `10.42.0.0/24` está libre y que los servicios escuchan en direcciones accesibles desde el AP. En una primera instalación, verifica que la unidad figura como `disabled`.
 
 ```bash
-sudo chown root:root /etc/dorsett/network.env
-sudo chmod 0600 /etc/dorsett/network.env
-sudo nano /etc/dorsett/network.env
+sudo dorsett-network status
+ip -4 addr show
+ip -4 route show table all
+sudo ss -lnt '( sport = :22 or sport = :5901 or sport = :445 )'
+systemctl is-enabled dorsett-fallback.service
 ```
 
-Asegúrate de:
-
-- Colocar entre comillas dobles los nombres con espacios (por ejemplo: `HOME_PROFILE="netplan-wlan0-MiRed"`).
-- **No escribir contraseñas Wi-Fi** en `/etc/dorsett/network.env`.
-- Verificar que `AP_ADDRESS=10.42.0.1/24`, `AP_BAND=bg`, `AP_CHANNEL=6` y `FALLBACK_TIMEOUT=30` corresponden a tu entorno.
-
----
-
-## 5. Creación del perfil `Dorsett-AP` (sin activarlo todavía)
-
-Ejecuta primero en modo simulación (`--dry-run`) y luego en modo real:
+## 2. Crear y proteger el AP sin activarlo
 
 ```bash
-sudo /usr/local/sbin/dorsett-setup-hotspot --config /etc/dorsett/network.env --dry-run
-sudo /usr/local/sbin/dorsett-setup-hotspot --config /etc/dorsett/network.env
+sudo /usr/local/sbin/dorsett-setup-hotspot --dry-run
+sudo /usr/local/sbin/dorsett-setup-hotspot
+nmcli -f connection.autoconnect,802-11-wireless.mode,802-11-wireless.band,ipv4.method,ipv4.addresses,802-11-wireless-security.key-mgmt,802-11-wireless-security.proto connection show id Dorsett-AP
 ```
 
-El script:
+Introduce y confirma la contraseña en el aviso oculto del script. Si ya existe un perfil incompleto, usa `sudo /usr/local/sbin/dorsett-setup-hotspot --update` mientras estés en HOME. Comprueba `autoconnect=no`, modo `ap`, banda `bg`, IPv4 `shared` con `10.42.0.1/24` y WPA2 (`wpa-psk`, `rsn`).
 
-- Verifica `NetworkManager`, `wlan0`, soporte AP y `dnsmasq`.
-- Comprueba conflictos de subred y evita perfiles duplicados.
-- Configura `802-11-wireless.mode ap`, `band bg`, `channel 6`, `ipv4.method shared`, `ipv4.addresses 10.42.0.1/24`, `ipv6.method disabled`, `connection.autoconnect no` y seguridad `WPA2-PSK` (`rsn` + `ccmp`).
-- Solicita la contraseña WPA2 de forma interactiva oculta (mínimo 8 caracteres; recomendada >= 12 caracteres) sin exponerla en argumentos visibles.
-- **No** activa el AP automáticamente al finalizar.
+## 3. Comprobar la recuperación mientras HOME sigue disponible
 
----
-
-## 6. Prueba controlada del AP con recuperación temporizada (Obligatoria antes de habilitar el servicio)
-
-Antes de habilitar `dorsett-fallback.service`, realiza la primera prueba manual del modo `NOMAD` con recuperación automática independiente de la sesión SSH.
-
-### Cómo funciona la protección integrada en `dorsett-network`
-
-Cuando ejecutas `sudo dorsett-network nomad` desde una sesión SSH:
-
-1. El script detecta la sesión remota y registra el perfil actualmente activo (por ejemplo, `HOME_PROFILE`).
-2. Programa un temporizador transitorio del sistema mediante `systemd-run --on-active=<ROLLBACK_TIMEOUT>s --unit=dorsett-network-rollback` (por defecto `120` segundos) que restaurará el perfil anterior aunque se corte la conexión SSH.
-3. **Nunca** cancela el *rollback* automáticamente solo porque `wlan0` haya adquirido la IP `10.42.0.1`.
-4. Activa `Dorsett-AP`.
-
-### Pasos de verificación física
-
-1. En la sesión SSH actual, verifica primero el estado sin cambios:
-   ```bash
-   dorsett-network --config /etc/dorsett/network.env status
-   dorsett-network --config /etc/dorsett/network.env --dry-run nomad
-   ```
-2. Inicia la transición protegida (por ejemplo con ventana de 180 segundos para conectar la Tablet):
-   ```bash
-   sudo dorsett-network --config /etc/dorsett/network.env --rollback-seconds 180 nomad
-   ```
-3. Tu sesión SSH sobre la red doméstica se desconectará al cambiar `wlan0` a modo AP.
-4. Desde la **Tablet X-View** o PC portátil:
-   - Conéctate al Wi-Fi `Dorsett-AP` con la contraseña configurada.
-   - Confirma que recibes IP por DHCP en `10.42.0.x`.
-   - Conéctate por SSH a `10.42.0.1` (puerto `22`).
-   - Prueba TightVNC en `10.42.0.1::5901` y Samba en `\\10.42.0.1`.
-5. **Solo tras verificar acceso real desde un cliente**, cancela la reversión automática dentro de la sesión SSH en `10.42.0.1`:
-   ```bash
-   sudo dorsett-network --config /etc/dorsett/network.env confirm
-   ```
-6. Si algo falla y no logras conectarte al AP, espera a que expire el temporizador (`180s`): `systemd-run` ejecutará `dorsett-network rollback` y restaurará la red doméstica automáticamente.
-
----
-
-## 7. Habilitación del servicio de arranque (`systemd`)
-
-**Solo después** de completar satisfactoriamente la prueba manual del AP y verificar que el regreso a `HOME` funciona:
+En una primera prueba, desde HOME y sin una transición pendiente, programa el mismo comando de recuperación que usa Dorsett. Cierra la sesión SSH después de comprobar que systemd lista el temporizador. Tras el vencimiento, vuelve a entrar por HOME y revisa el resultado.
 
 ```bash
-sudo systemctl daemon-reload
+sudo systemd-run --unit=dorsett-home-check --on-active=30s --timer-property=AccuracySec=1s /usr/local/bin/dorsett-network --config /etc/dorsett/network.env rollback
+systemctl list-timers dorsett-home-check.timer --no-pager
+```
+
+```bash
+sudo journalctl -u dorsett-home-check.service -b --no-pager
+sudo dorsett-network status
+```
+
+Continúa cuando el diario confirme la restauración y el estado vuelva a mostrar HOME con IPv4. Si falla, revisa el nombre y la disponibilidad del perfil desde el acceso de rescate.
+
+## 4. Validar NOMAD y regresar a HOME
+
+Desde HOME, ejecuta lo siguiente. La opción explícita arma la reversión incluso si `sudo` elimina las variables SSH. El temporizador se programa antes de activar el AP y seguirá pendiente después de activarlo.
+
+```bash
+sudo dorsett-network --dry-run --rollback-seconds 300 nomad
+sudo dorsett-network --rollback-seconds 300 nomad
+```
+
+Desde la Tablet, conéctate a `Dorsett-AP` e introduce la contraseña en el diálogo Wi-Fi. Ejecuta `ipconfig /all` y comprueba que DHCP asignó una dirección `10.42.0.x` con máscara `255.255.255.0`. Abre una sesión SSH al puerto 22 de `10.42.0.1` con tu usuario habitual, inicia una sesión TightVNC en `10.42.0.1::5901` y abre un archivo compartido en `\\10.42.0.1` desde el Explorador de Windows.
+
+Si cualquiera de las comprobaciones falla, deja vencer el temporizador, vuelve a conectarte a HOME y consulta `sudo journalctl -u dorsett-network-rollback.service -b --no-pager`. Si la recuperación falla, usa el acceso de rescate. Si las tres aplicaciones y DHCP funcionan, ejecuta desde la sesión SSH de la Tablet al AP:
+
+```bash
+sudo dorsett-network status
+systemctl list-timers dorsett-network-rollback.timer --no-pager
+sudo dorsett-network confirm
+```
+
+Con el router disponible, vuelve a HOME manualmente. La segunda transición también queda protegida, esta vez con retorno a NOMAD si falla HOME. Reconecta el cliente al router, abre SSH por la dirección HOME y confirma antes del vencimiento.
+
+```bash
+# Desde NOMAD
+sudo dorsett-network --rollback-seconds 300 home
+# Desde la nueva sesión SSH en HOME
+sudo dorsett-network status
+sudo dorsett-network confirm
+```
+
+## 5. Habilitar el fallback y probar un arranque aislado
+
+Desde HOME, una vez validado el AP y el regreso manual, habilita la unidad para el siguiente arranque:
+
+```bash
 sudo systemctl enable dorsett-fallback.service
 ```
 
-Para inspeccionar su ejecución tras un reinicio controlado:
+Comprueba que el acceso de rescate también funciona con el router apagado. Desde ese acceso, con el router y el hotspot del teléfono apagados, reinicia la Pi. Los temporizadores transitorios de la prueba anterior terminan al reiniciar.
 
 ```bash
-systemctl status dorsett-fallback.service --no-pager
-journalctl -u dorsett-fallback.service -b --no-pager
+sudo systemctl reboot
 ```
+
+Espera el arranque y la ventana inicial de 30 segundos. Desde la Tablet repite DHCP, SSH, TightVNC y Samba sobre el AP. Desde la Pi comprueba:
+
+```bash
+sudo dorsett-network status
+systemctl status dorsett-fallback.service --no-pager
+sudo journalctl -u dorsett-fallback.service -b --no-pager
+```
+
+Espera `detected_mode=NOMAD`, `10.42.0.1/24` y una unidad `active (exited)` tras una única activación correcta. Vuelve a encender el router y verifica que la sesión NOMAD sigue accesible antes de regresar a HOME. Si falla el arranque aislado, enciende el router y usa el acceso de rescate para ejecutar `sudo systemctl disable dorsett-fallback.service` y `sudo dorsett-network home`.
+
+## Cómo selecciona el fallback
+
+NetworkManager decide qué perfil cliente autoconectar. El servicio observa `wlan0` durante una ventana acotada y conserva HOME, MOBILE o cualquier conexión cliente desconocida en estado conectado con IPv4 distinta de `169.254.0.0/16` y `0.0.0.0/8`. La conexión desconocida queda registrada con una advertencia. Un perfil secundario autoconectado con IPv4 puede impedir NOMAD aunque estén apagados el router HOME y el teléfono. Antes del reinicio de prueba, revisa qué otras redes guardadas pueden estar al alcance.
+
+Una conexión sin IPv4 utilizable sigue dentro de la ventana de espera. Al vencer, el servicio puede reemplazarla activando `Dorsett-AP`. La selección usa estado local y direccionamiento, sin pruebas de Internet, DNS o gateway. El servicio es `oneshot`, conserva un NOMAD ya operativo y termina tras una única decisión. Volver a HOME requiere intervención manual o un nuevo arranque.

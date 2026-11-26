@@ -69,3 +69,13 @@ Verificaciones realizadas:
 ### Último estado
 
 Suite simulada aprobada (43 PASS / 0 FAIL / 2 SKIP; shellcheck y systemd-analyze omitidos por ausencia en Windows). Sin bloqueadores para publicar el repositorio tal como está; bloqueador para declarar NOMAD operativo: ausencia de pruebas físicas.
+
+## Fase 5 — Preparación del despliegue NOMAD (2026-11-26)
+
+- **Git:** rama `main`, con historial y árbol limpio al inicio. Cambios locales sin publicar. `v0.4.0` sigue en `[Unreleased]`.
+- **`IMPLEMENTED`:** `install.sh` comprueba requisitos locales, instala scripts y unidad como `root:root`, conserva la configuración con permisos `0600` y recarga las unidades. La habilitación queda a cargo del propietario después de la prueba manual.
+- **Correcciones:** `MOBILE_PROFILE=""` permite planificar el despliegue sin el teléfono. El editor de `nmcli` recibe la PSK por entrada estándar con el historial bloqueado y el script compara la PSK persistida sin mostrarla.
+- **Selección al arrancar:** un cliente desconocido conectado con IPv4 utilizable se conserva y deja una advertencia. Si carece de IPv4 utilizable, el AP puede reemplazarlo tras la espera. Se conserva NOMAD operativo y el servicio no realiza búsquedas periódicas de HOME.
+- **Validación estática local:** `bash -n` aprobó el instalador, los tres scripts de red y la suite en Bash/MSYS. `--help` funcionó y `--check` rechazó Windows por plataforma.
+- **Validación simulada:** `bash tests/test-network.sh` devolvió **47 PASS / 0 FAIL / 2 SKIP**. T04 activó el AP con MOBILE vacío y obtuvo `10.42.0.1/24`. La prueba de aprovisionamiento comprobó el guardado simulado sin exponer la PSK ni activar el AP. `shellcheck` y `systemd-analyze` se omitieron por ausencia.
+- **Pendiente en Raspberry Pi:** comprobar instalación e idempotencia en Debian ARM64, comprobar el temporizador y el regreso a HOME, validar WPA2, DHCP, SSH, TightVNC y Samba, y verificar el arranque aislado. Para la prueba de arranque hace falta un acceso de rescate que funcione con el router apagado. [Guía de despliegue](../INSTALLATION.md)

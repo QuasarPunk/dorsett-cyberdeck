@@ -10,6 +10,8 @@ El formato de este archivo está inspirado en [Keep a Changelog](https://keepach
 
 ### Added
 
+- Instalador idempotente `install.sh` con comprobación previa, conservación de la configuración local e instalación de archivos de sistema sin activar NOMAD ni habilitar el fallback.
+
 - Reestructuración integral del repositorio bajo la jerarquía `docs/`, `software/`, `tests/`, `hardware/`, `firmware/` y `assets/`.
 - Memoria técnica permanente en `docs/TECHNICAL_CONTEXT.md` con clasificación explícita de estados (`CONFIRMED`, `REPORTED`, `IMPLEMENTED`, `PLANNED`, `UNKNOWN`).
 - Registro histórico de auditoría técnica en `docs/audits/2026-11-24-system-audit.md`.
@@ -27,6 +29,12 @@ El formato de este archivo está inspirado en [Keep a Changelog](https://keepach
 ### Changed
 
 - Reescritura y saneamiento de `README.md`: eliminación de texto conversacional residual, corrección de bloques Markdown, separación entre autonomía de red y energética, y sanitización de identificadores personales.
+- Procedimiento de despliegue con comprobación previa del temporizador, confirmación desde la Tablet y prueba de arranque aislado.
+
+### Fixed
+
+- Una configuración con `MOBILE_PROFILE=""` permite el fallback a NOMAD mientras se registra el hotspot del teléfono.
+- El aprovisionamiento WPA2 evita que el editor de `nmcli` guarde la PSK en su historial y verifica el valor persistido sin imprimirlo.
 
 ---
 

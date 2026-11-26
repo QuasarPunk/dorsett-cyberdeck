@@ -197,7 +197,7 @@ i=0
 while [[ $i -lt ${#args[@]} ]]; do
     a="${args[$i]}"
     case "$a" in
-        --wait|-f)
+        --wait|--escape|-f)
             i=$((i + 2))
             continue
             ;;
@@ -206,7 +206,7 @@ while [[ $i -lt ${#args[@]} ]]; do
             i=$((i + 2))
             continue
             ;;
-        -t|--ask)
+        -t|--ask|--show-secrets)
             terse=1
             i=$((i + 1))
             continue
@@ -303,6 +303,7 @@ case "$cmd" in
                             if [[ "$prof" == "${MOCK_AP_PROFILE:-Dorsett-AP}" ]]; then printf 'no\n'; else printf 'yes\n'; fi
                             ;;
                         802-11-wireless-security.key-mgmt) printf 'wpa-psk\n' ;;
+                        802-11-wireless-security.psk) cat "$STATE_DIR/ap.psk" ;;
                         *) printf 'connection.id:%s\n' "$prof" ;;
                     esac
                 else
@@ -341,7 +342,8 @@ case "$cmd" in
                 fi
                 ;;
             edit)
-                cat >/dev/null
+                [[ "${XDG_CACHE_HOME:-}" == /dev/null ]] || exit 1
+                sed -n 's/^set 802-11-wireless-security.psk //p' > "$STATE_DIR/ap.psk"
                 ;;
         esac
         ;;
@@ -443,6 +445,7 @@ EOF
     export DORSETT_SS_BIN="$MOCK_BIN/ss"
     export DORSETT_JOURNALCTL_BIN="$MOCK_BIN/journalctl"
     export DORSETT_LOGINCTL_BIN="$MOCK_BIN/loginctl"
+    export DORSETT_LOGGER_BIN=true
     export DORSETT_ALLOW_NONROOT=1
     export DORSETT_STATE_DIR="$TMP_TEST_DIR/dorsett_state"
 }
@@ -508,7 +511,10 @@ run_functional_tests() {
     printf '30 (disconnected)\n' > "$MOCK_STATE/device_state"
     printf -- '--\n' > "$MOCK_STATE/active_conn"
     : > "$MOCK_STATE/ipv4"
-    run_checked "T04 fallback ejecución" run_net fallback || true
+    local no_mobile_config="$TMP_TEST_DIR/no-mobile.env"
+    sed 's/^MOBILE_PROFILE=.*/MOBILE_PROFILE=""/' "$TEST_CFG" > "$no_mobile_config"
+    # Usar un archivo alternativo para este escenario sin tocar el original.
+    run_checked "T04 fallback con MOBILE sin configurar" run_net fallback --config "$no_mobile_config" || true
     assert_eq "Dorsett-AP" "$(cat "$MOCK_STATE/active_conn")" "T04 fallback activa Dorsett-AP cuando no hay conexión"
     assert_eq "10.42.0.1/24" "$(cat "$MOCK_STATE/ipv4")" "T04 modo NOMAD obtiene 10.42.0.1/24"
 
@@ -622,6 +628,13 @@ run_functional_tests() {
     assert_contains "$setup_out" "ya existe" "setup-hotspot.sh detecta perfil existente y evita duplicados"
     setup_out="$("$SETUP_AP" --config "$TEST_CFG" --update --dry-run 2>&1)" || fail "setup-hotspot --update --dry-run falló: $setup_out"
     assert_contains "$setup_out" "NO fue activado automáticamente" "setup-hotspot.sh no activa AP por defecto"
+    : > "$MOCK_STATE/nmcli.calls"
+    setup_out="$(printf '%s\n' 'psk-ficticia:123' 'psk-ficticia:123' |
+        "$SETUP_AP" --config "$TEST_CFG" --update --ask 2>&1)" || fail "setup-hotspot --update no guardó la PSK simulada"
+    assert_contains "$setup_out" "validado" "El aprovisionamiento interactivo verifica la PSK guardada"
+    assert_not_contains "$setup_out" "psk-ficticia:123" "El aprovisionamiento no imprime la PSK"
+    assert_not_contains "$(cat "$MOCK_STATE/nmcli.calls")" "psk-ficticia:123" "La PSK no se pasa en argumentos a nmcli"
+    assert_not_contains "$(cat "$MOCK_STATE/nmcli.calls")" "connection up" "El aprovisionamiento real simulado deja el AP inactivo"
 
     # T19: collect-diagnostics.sh sanitizado (sin MAC/UUID/SSID personales ni --show-secrets)
     reset_mock_state

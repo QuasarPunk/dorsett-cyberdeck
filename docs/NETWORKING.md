@@ -29,7 +29,7 @@ Este documento detalla los tres modos oficiales de conectividad de **Dorsett (`v
 
 - **Rol:** cliente Wi-Fi conectado al hotspot del smartphone **Samsung Galaxy A10**.
 - **Interfaz:** `wlan0`.
-- **Perfil:** definido en `MOBILE_PROFILE` dentro de `/etc/dorsett/network.env`.
+- **Perfil:** definido en `MOBILE_PROFILE` dentro de `/etc/dorsett/network.env`. Puede quedar vacío hasta que se registre el hotspot.
 - **Autoconexión y prioridad:** habilitada, prioridad `50`.
 - **Direccionamiento:** IPv4 dinámico por DHCP entregado por el smartphone.
 - **Internet:** opcional (datos móviles del teléfono).
@@ -102,12 +102,12 @@ La auditoría del `2026-11-24` detectó perfiles llamados `netplan-wlan0-*` y `n
 ```mermaid
 flowchart TD
     Start["Inicio dorsett-network fallback (tras NetworkManager.service)"] --> Lock["Adquirir bloqueo flock"]
-    Lock --> Loop["Esperar ventana acotada (hasta FALLBACK_TIMEOUT=30s)\nsi wlan0 está en estado connecting/activating"]
+    Lock --> Loop["Esperar hasta FALLBACK_TIMEOUT=30s si wlan0 carece de conexión con IPv4 utilizable"]
     Loop --> CheckActive{"¿Perfil activo en wlan0?"}
     CheckActive -- "HOME con IPv4 válida (no 169.254/16)" --> KeepHome["Preservar HOME (exit 0)"]
     CheckActive -- "MOBILE con IPv4 válida (no 169.254/16)" --> KeepMobile["Preservar MOBILE (exit 0)"]
     CheckActive -- "Dorsett-AP con 10.42.0.1/24" --> KeepNomad["Preservar NOMAD (exit 0)"]
-    CheckActive -- "Perfil desconocido activo" --> WarnUnknown["Registrar anomalía y preservar sin cortar (exit 0)"]
+    CheckActive -- "Cliente desconocido conectado con IPv4 válida" --> WarnUnknown["Registrar advertencia y preservar enlace (exit 0)"]
     CheckActive -- "Sin conexión válida / desconectado / link-local" --> CheckAP{"¿Existe perfil Dorsett-AP?"}
     CheckAP -- "No" --> ErrNoAP["Error informativo sin cambios destructivos (exit != 0)"]
     CheckAP -- "Sí" --> UpAP["Activar Dorsett-AP con timeout"]
@@ -117,6 +117,8 @@ flowchart TD
 ```
 
 ### Criterios de validez de IPv4
+
+Un perfil cliente secundario autoconectado con IPv4 utilizable evita que se active NOMAD. Si carece de IPv4 utilizable, puede ser sustituido por el AP al vencer la ventana.
 
 El script **no** considera suficiente cualquier dirección IP en `wlan0`:
 
