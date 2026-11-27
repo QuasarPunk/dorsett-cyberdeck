@@ -75,3 +75,48 @@ bash software/scripts/collect-diagnostics.sh
 ```
 
 El informe se guardará por defecto en `docs/audits/local/` (excluido de Git).
+
+---
+
+## 7. El instalador falla al listar perfiles `nmcli`
+
+- **Incidencia observada en la Raspberry Pi (`2026-11-26`):** fallo al ejecutar la consulta con columnas `AUTOCONNECT,AUTOCONNECT-PRIORITY`.
+- **Corrección incorporada:**
+  ```bash
+  PAGER=cat LC_ALL=C timeout 10s nmcli -f NAME,TYPE,DEVICE connection show
+  ```
+- **Estado:** la corrección permitió completar la instalación. La causa exacta del fallo original no quedó determinada; no se afirma que fuera exclusivamente el paginador.
+
+---
+
+## 8. Windows solicita una entrada de ocho dígitos al conectar con `Dorsett-AP`
+
+- **Observación (`2026-11-26`):** solicitud compatible con un PIN WPS durante la primera prueba.
+- **Acción aplicada por el propietario:**
+  ```bash
+  sudo nmcli connection modify Dorsett-AP 802-11-wireless-security.wps-method 1
+  ```
+- **Estado:** las conexiones posteriores de Windows y Android fueron exitosas. WPS debe permanecer deshabilitado (`1`) en perfiles nuevos y existentes, conservando WPA2/RSN/CCMP. No se afirma que WPS causara todos los problemas iniciales.
+
+---
+
+## 9. Advertencia `CAP_CHOWN` de `dnsmasq` en NOMAD
+
+- **Observación (`2026-11-26`):** advertencia `CAP_CHOWN` durante el inicio del servidor DHCP.
+- **Estado:** no impidió la concesión DHCP ni el acceso de los clientes en `10.42.0.0/24`. No se introdujeron cambios en `dnsmasq` a partir de esta advertencia.
+
+---
+
+## 10. VNC no funciona tras activar NOMAD
+
+- **Causa observada (`2026-11-26`):** la Tablet permanecía conectada al router doméstico en lugar de `Dorsett-AP`.
+- **Acción:** conectar la Tablet a `Dorsett-AP` y usar `10.42.0.1::5901` en TightVNC Viewer.
+- **Estado:** el acceso fue exitoso después de conectarla al AP. No se atribuyó la incidencia a WPS ni a WayVNC.
+
+---
+
+## 11. Reaparece la red doméstica y Dorsett sigue en NOMAD
+
+- **Comportamiento esperado:** NOMAD **no** retorna automáticamente a HOME. La decisión es intencional para no cortar sesiones SSH/TightVNC activas.
+- **Si se requiere el regreso:** usar `sudo dorsett-network --rollback-seconds 300 home`, verificar el acceso desde la red HOME y ejecutar `sudo dorsett-network confirm`.
+- **Pendiente:** confirmación específica del regreso manual tras el arranque aislado. La recuperación dinámica ante caídas durante la ejecución no está implementada en `v0.4.0`.

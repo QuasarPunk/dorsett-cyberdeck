@@ -1,6 +1,6 @@
 # ADR-001: Arquitectura de Modos de Red y Fallback Inicial (v0.4.0)
 
-- **Estado:** Propuesto / Implementado en código (`v0.4.0`), pendiente de validación física en Raspberry Pi 5.
+- **Estado:** Aceptado, implementado, desplegado y validado en sus características principales sobre Raspberry Pi 5 (`v0.4.0`). `MOBILE` y la matriz completa `T01`–`T19` siguen pendientes.
 - **Fecha:** 2026-11-24.
 - **Ámbito:** Gestión de conectividad inalámbrica en `wlan0` sobre Debian GNU/Linux 13 (`trixie` ARM64) con `NetworkManager 1.52.1`.
 
@@ -84,7 +84,7 @@ El servicio `dorsett-fallback.service` actúa **una sola vez en el arranque** tr
 
 - En modo `NOMAD`, Dorsett no tiene acceso simultáneo a una red Wi-Fi externa salvo que se conecte Ethernet (`eth0`) o se añada un segundo adaptador inalámbrico en el futuro.
 - El cambio manual remoto de modo por SSH corta la sesión si falla o cambia la subred; por ello exige un mecanismo de recuperación temporizada independiente de la sesión SSH.
-- El funcionamiento real de `dnsmasq` bajo `ipv4.method shared` y la compatibilidad de `Dorsett-AP` con la Tablet Windows 8.1 aún deben validarse físicamente.
+- El funcionamiento real de `dnsmasq` bajo `ipv4.method shared` y el acceso desde Windows/Android a `Dorsett-AP` quedaron confirmados físicamente por el propietario el `2026-11-26`; la compatibilidad con la Tablet Windows 8.1 se confirmó al conectarla al AP.
 
 ---
 
@@ -92,6 +92,6 @@ El servicio `dorsett-fallback.service` actúa **una sola vez en el arranque** tr
 
 Este ADR deberá revisarse cuando se cumpla cualquiera de los siguientes hitos:
 
-1. Validación física de `v0.4.0` mediante el plan de pruebas `T01`–`T19`.
+1. Validación física de `v0.4.0` mediante el plan de pruebas `T01`–`T19`: registrada parcialmente en [2026-11-26-nomad-deployment.md](../audits/2026-11-26-nomad-deployment.md), sin aprobar automáticamente todos los escenarios.
 2. Diseño de recuperación dinámica ante caídas de red (`v0.5.0`).
 3. Incorporación de un segundo adaptador Wi-Fi USB para habilitar un modo `BRIDGE` dedicado.

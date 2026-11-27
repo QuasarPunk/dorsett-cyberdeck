@@ -4,7 +4,7 @@
 
 ---
 
-## Etapas históricas y en curso
+## Etapas históricas y versión actual
 
 ### v0.1.0 — Acceso remoto *(Confirmado / Reportado)*
 
@@ -24,13 +24,17 @@
 - Priorización del perfil doméstico (`autoconnect-priority = 100`).
 - Estabilización de acceso local mediante IP `192.168.1.52/24`.
 
-### v0.4.0 — Nomad Update y fallback al arrancar *(En desarrollo — Implementado en repositorio, pendiente de validación física)*
+### v0.4.0 — Nomad Update y fallback al arrancar *(Validada en hardware en sus características principales)*
 
 - Reestructuración documental y técnica del repositorio.
 - Arquitectura formal de modos `HOME`, `MOBILE` y `NOMAD` (`Dorsett-AP`, `10.42.0.1/24`).
 - Scripts de gestión de red, aprovisionamiento del AP y diagnóstico sanitizado.
 - Unidad `dorsett-fallback.service` al arranque (sin escaneo continuo ni retorno automático).
 - Procedimiento de recuperación segura para sesiones remotas y plan de pruebas T01–T19.
+- `HOME` y `NOMAD` operativos, incluido arranque autónomo sin router; `MOBILE` pendiente de configuración y validación.
+- Auditoría del despliegue físico: [2026-11-26-nomad-deployment.md](docs/audits/2026-11-26-nomad-deployment.md).
+
+> Esta versión se publica sin tag ni release adicional. La Tablet Windows 8.1 con TightVNC sigue siendo una solución de visualización provisional; no sustituye una pantalla HDMI integrada.
 
 ---
 
@@ -44,6 +48,8 @@
 ### v0.6.0 — Interfaz gráfica de administración *(Planificado)*
 
 - Panel ligero (local o web en LAN) para visualizar estado de red, servicios, temperaturas y conmutar modos de conectividad sin usar terminal.
+- Integración futura con **Scio Control Center** como proyecto de software independiente, inicialmente alojado en Dorsett; su código no se incorpora a este repositorio.
+- Pantalla HDMI directa para reducir la dependencia de TightVNC sobre la Tablet Windows 8.1.
 
 ### v0.7.0 — Integración de nodos IoT *(Planificado)*
 

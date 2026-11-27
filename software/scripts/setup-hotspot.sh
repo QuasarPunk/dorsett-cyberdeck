@@ -24,6 +24,7 @@ AP_SSID="Dorsett-AP"
 AP_ADDRESS="10.42.0.1/24"
 AP_BAND="bg"
 AP_CHANNEL="6"
+AP_WPS_METHOD="1"
 NMCLI_TIMEOUT="20"
 
 DRY_RUN=0
@@ -192,7 +193,11 @@ configure_profile() {
 
     if [[ "$exists" -eq 1 ]] && [[ "$UPDATE_EXISTING" -eq 0 ]]; then
         log_msg "INFO" "El perfil '$AP_PROFILE' ya existe. No se crean duplicados (usa --update si deseas reconfigurarlo)."
-        if [[ "$DRY_RUN" -eq 0 ]]; then
+        if [[ "$DRY_RUN" -eq 1 ]]; then
+            log_msg "INFO" "[DRY-RUN] Se aplicaría wps-method=$AP_WPS_METHOD (WPS deshabilitado) al perfil existente"
+        else
+            run_nmcli connection modify "$AP_PROFILE" \
+                802-11-wireless-security.wps-method "$AP_WPS_METHOD" >/dev/null
             validate_final_profile
             ( set +x
               saved_psk="$(run_nmcli --show-secrets -g 802-11-wireless-security.psk connection show "$AP_PROFILE" 2>/dev/null)" \
@@ -208,7 +213,7 @@ configure_profile() {
         else
             log_msg "INFO" "[DRY-RUN] Se actualizaría perfil existente '$AP_PROFILE'"
         fi
-        log_msg "INFO" "[DRY-RUN] Parámetros: mode=ap band=$AP_BAND channel=$AP_CHANNEL ipv4.method=shared ipv4.addresses=$AP_ADDRESS ipv6.method=disabled autoconnect=no security=wpa-psk/rsn/ccmp"
+        log_msg "INFO" "[DRY-RUN] Parámetros: mode=ap band=$AP_BAND channel=$AP_CHANNEL ipv4.method=shared ipv4.addresses=$AP_ADDRESS ipv6.method=disabled autoconnect=no security=wpa-psk/rsn/ccmp wps-method=$AP_WPS_METHOD (deshabilitado)"
         return 0
     fi
 
@@ -230,7 +235,8 @@ configure_profile() {
         802-11-wireless.channel "$AP_CHANNEL" \
         ipv4.method shared \
         ipv4.addresses "$AP_ADDRESS" \
-        ipv6.method disabled >/dev/null
+        ipv6.method disabled \
+        802-11-wireless-security.wps-method "$AP_WPS_METHOD" >/dev/null
 
     apply_ap_security_stdin
 
@@ -238,7 +244,7 @@ configure_profile() {
 }
 
 validate_final_profile() {
-    local mode band chan ipv4_m ipv4_a autoconn key_mgmt
+    local mode band chan ipv4_m ipv4_a autoconn key_mgmt wps_method wps_value
     mode="$(run_nmcli -g 802-11-wireless.mode connection show "$AP_PROFILE")"
     band="$(run_nmcli -g 802-11-wireless.band connection show "$AP_PROFILE")"
     chan="$(run_nmcli -g 802-11-wireless.channel connection show "$AP_PROFILE")"
@@ -246,13 +252,16 @@ validate_final_profile() {
     ipv4_a="$(run_nmcli -g ipv4.addresses connection show "$AP_PROFILE")"
     autoconn="$(run_nmcli -g connection.autoconnect connection show "$AP_PROFILE")"
     key_mgmt="$(run_nmcli -g 802-11-wireless-security.key-mgmt connection show "$AP_PROFILE")"
+    wps_method="$(run_nmcli -g 802-11-wireless-security.wps-method connection show "$AP_PROFILE")"
+    wps_value="${wps_method%% *}"
 
     [[ "$mode" == "ap" ]] || die "$EXIT_GENERAL" "Validación fallida: mode=$mode (esperado ap)"
     [[ "$ipv4_m" == "shared" ]] || die "$EXIT_GENERAL" "Validación fallida: ipv4.method=$ipv4_m (esperado shared)"
     [[ "$autoconn" == "no" ]] || die "$EXIT_GENERAL" "Validación fallida: autoconnect=$autoconn (esperado no)"
     [[ "$key_mgmt" == "wpa-psk" ]] || die "$EXIT_GENERAL" "Validación fallida: key-mgmt=$key_mgmt (esperado wpa-psk)"
+    [[ "$wps_value" == "$AP_WPS_METHOD" ]] || die "$EXIT_GENERAL" "Validación fallida: wps-method=$wps_method (esperado $AP_WPS_METHOD / deshabilitado)"
 
-    log_msg "INFO" "Perfil '$AP_PROFILE' validado: mode=$mode band=$band channel=$chan ipv4=$ipv4_a ($ipv4_m) autoconnect=$autoconn security=$key_mgmt"
+    log_msg "INFO" "Perfil '$AP_PROFILE' validado: mode=$mode band=$band channel=$chan ipv4=$ipv4_a ($ipv4_m) autoconnect=$autoconn security=$key_mgmt wps-method=$wps_method"
 }
 
 parse_args() {

@@ -1,6 +1,6 @@
 # Arquitectura y Operación de Redes — Proyecto Dorsett
 
-Este documento detalla los tres modos oficiales de conectividad de **Dorsett (`v0.4.0 — Nomad Update`)**, la interacción con `NetworkManager 1.52.1` y Netplan, y la lógica exacta del *fallback* al arrancar.
+Este documento detalla los tres modos oficiales de conectividad de **Dorsett (`v0.4.0 — Nomad Update`)**, la interacción con `NetworkManager 1.52.1` y Netplan, y la lógica exacta del *fallback* al arrancar. `HOME` y `NOMAD` quedaron validados físicamente por el propietario; `MOBILE` sigue pendiente de configuración y validación.
 
 ---
 
@@ -64,7 +64,8 @@ sudo nmcli connection modify "Galaxy-A10-Hotspot" \
 - **Nombre de perfil y SSID por defecto:** `Dorsett-AP`.
 - **Interfaz:** `wlan0`.
 - **Banda y canal:** `2.4 GHz` (`802-11-wireless.band bg`), canal inicial `6` (compatible con dispositivos antiguos de 2.4 GHz como la Tablet X-View).
-- **Seguridad:** WPA2-PSK con cifrado CCMP (`wifi-sec.key-mgmt wpa-psk`, `wifi-sec.proto rsn`, `wifi-sec.pairwise ccmp`, `wifi-sec.group ccmp`). Nunca AP abierto.
+- **Seguridad:** WPA2-PSK con protocolo RSN y cifrado CCMP (`wifi-sec.key-mgmt wpa-psk`, `wifi-sec.proto rsn`, `wifi-sec.pairwise ccmp`, `wifi-sec.group ccmp`). Nunca AP abierto.
+- **WPS deshabilitado:** `802-11-wireless-security.wps-method 1` se aplica en perfiles nuevos y existentes. Se mantuvieron WPA2, RSN y CCMP sin otros cambios de seguridad.
 - **IPv4:** `10.42.0.1/24` con `ipv4.method shared` (NetworkManager invoca `/usr/sbin/dnsmasq` como servidor DHCP local).
 - **IPv6:** deshabilitado (`ipv6.method disabled` o `ignore`) para evitar ambigüedad en clientes antiguos.
 - **Autoconexión:** deshabilitada (`connection.autoconnect no`), activándose únicamente por *fallback* cuando no hay red autorizada o por orden explícita.
@@ -77,6 +78,30 @@ sudo nmcli connection modify "Galaxy-A10-Hotspot" \
 | **TightVNC** | `10.42.0.1::5901` | Sintaxis de puerto en TightVNC Viewer (Windows 8.1) |
 | **Samba** | `\\10.42.0.1` | Acceso al recurso compartido desde Windows/Android |
 | **mDNS** | `raspi-ali.local` | Opcional si Avahi y el cliente resuelven sobre `wlan0` en modo AP; la IP es la referencia principal |
+
+Ejemplos de acceso desde un cliente conectado a `Dorsett-AP`:
+
+```bash
+ssh <usuario>@10.42.0.1
+```
+
+- TightVNC Viewer: `10.42.0.1::5901`.
+- Samba desde Windows: `\\10.42.0.1`, con el usuario y la contraseña Samba configurados en el sistema.
+
+#### Validación física y operación manual
+
+En las pruebas del propietario (`2026-11-26`/`2026-11-27`) se confirmaron DHCP en `10.42.0.10`–`10.42.0.254`, cliente Windows en `10.42.0.212`, SSH, puertos TCP `5901` y `445`, Samba, TightVNC, transferencia real de archivos sin router y activación automática de `Dorsett-AP` en el arranque aislado. Detalle: [auditoría de despliegue](audits/2026-11-26-nomad-deployment.md).
+
+```bash
+sudo dorsett-network status
+sudo dorsett-network --rollback-seconds 300 home
+sudo dorsett-network --rollback-seconds 300 nomad
+sudo dorsett-network confirm
+```
+
+La conmutación interrumpe momentáneamente la conexión. El temporizador de 300 segundos permite volver al modo anterior si la nueva red falla; **ejecuta `confirm` solo después de verificar SSH/VNC/Samba desde un cliente de la nueva red**. La recuperación temporizada quedó comprobada físicamente en la prueba NOMAD.
+
+Si el router doméstico reaparece mientras NOMAD está activo, Dorsett **no retorna automáticamente a HOME**: el comportamiento es intencional para preservar sesiones activas. El regreso manual desde NOMAD tras el arranque aislado queda pendiente de confirmación específica. La recuperación dinámica ante caídas durante la ejecución no está implementada en `v0.4.0`.
 
 ---
 

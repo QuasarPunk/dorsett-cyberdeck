@@ -7,6 +7,7 @@ Este documento establece los controles de seguridad obligatorios para operar Dor
 ## 1. Seguridad inalámbrica y de perfiles
 
 - **WPA2-PSK obligatorio en `NOMAD`:** `Dorsett-AP` debe utilizar `wifi-sec.key-mgmt wpa-psk`, protocolo `rsn` y cifrado `ccmp`. **Nunca configurar un Access Point abierto.**
+- **WPS deshabilitado:** mantener `802-11-wireless-security.wps-method 1` en perfiles nuevos y existentes. Esta configuración no sustituye WPA2/RSN/CCMP ni modifica otros parámetros de seguridad.
 - **Contraseña robusta:** utilizar una clave aleatoria o frase de paso de al menos 12–16 caracteres (mínimo técnico WPA2: 8).
 - **Protección de credenciales:**
   - Las contraseñas Wi-Fi residen exclusivamente en los perfiles protegidos de `NetworkManager` (`/etc/NetworkManager/system-connections/`, permisos `0600` `root:root`).

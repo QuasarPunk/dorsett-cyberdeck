@@ -79,3 +79,22 @@ Suite simulada aprobada (43 PASS / 0 FAIL / 2 SKIP; shellcheck y systemd-analyze
 - **Validación estática local:** `bash -n` aprobó el instalador, los tres scripts de red y la suite en Bash/MSYS. `--help` funcionó y `--check` rechazó Windows por plataforma.
 - **Validación simulada:** `bash tests/test-network.sh` devolvió **47 PASS / 0 FAIL / 2 SKIP**. T04 activó el AP con MOBILE vacío y obtuvo `10.42.0.1/24`. La prueba de aprovisionamiento comprobó el guardado simulado sin exponer la PSK ni activar el AP. `shellcheck` y `systemd-analyze` se omitieron por ausencia.
 - **Pendiente en Raspberry Pi:** comprobar instalación e idempotencia en Debian ARM64, comprobar el temporizador y el regreso a HOME, validar WPA2, DHCP, SSH, TightVNC y Samba, y verificar el arranque aislado. Para la prueba de arranque hace falta un acceso de rescate que funcione con el router apagado. [Guía de despliegue](../INSTALLATION.md)
+
+---
+
+## Fase 6 — Cierre y publicación de v0.4.0 (2026-11-27)
+
+- **Git:** rama `main`, historial limpio al inicio y `origin/main` alineado en `a7e25b8`. Sin creación de ramas ni reconstrucción del proyecto.
+- **Correcciones `IMPLEMENTED` incorporadas al repositorio:**
+  - `install.sh` usa `PAGER=cat LC_ALL=C timeout 10s nmcli -f NAME,TYPE,DEVICE connection show`. La causa exacta del fallo previo no quedó determinada.
+  - `software/scripts/setup-hotspot.sh` aplica `802-11-wireless-security.wps-method 1` a perfiles nuevos y existentes (incluso sin `--update`), lo refleja en `--dry-run` y lo comprueba en `validate_final_profile`. WPA2, RSN y CCMP permanecen intactos.
+- **`CONFIRMED` en hardware (informado por el propietario, no ejecutado por el agente):** instalación corregida, HOME reconocido, `Dorsett-AP` con `autoconnect=no`, DHCP `10.42.0.10`–`10.42.0.254`, concesión al Galaxy A10, WPS desactivado, Windows en `10.42.0.212`, ping a `10.42.0.1` (4/4, 0 %, 5 ms), SSH, TCP `5901`/`445`, Samba con credenciales del usuario Samba, TightVNC, reversión tras 300 s, fallback habilitado, arranque sin router, transferencia real de archivos y persistencia de NOMAD al reaparecer HOME. Registro: [auditoría de despliegue](../audits/2026-11-26-nomad-deployment.md).
+- **Estados funcionales:** HOME operativo; NOMAD operativo con arranque autónomo; MOBILE pendiente; recuperación temporizada comprobada en la prueba NOMAD; regreso a HOME comprobado en pruebas anteriores; regreso manual desde NOMAD tras arranque aislado pendiente de confirmación específica; recuperación dinámica no implementada; interfaz gráfica pendiente. No se marcan todas las pruebas `T01`–`T19` como aprobadas.
+- **Documentación actualizada:** `README.md`, `CHANGELOG.md`, `ROADMAP.md`, `docs/TECHNICAL_CONTEXT.md`, `docs/NETWORKING.md`, `docs/INSTALLATION.md`, `docs/TROUBLESHOOTING.md`, `docs/SECURITY.md`, `docs/decisions/ADR-001-network-modes.md`, `tests/network-test-plan.md`, nueva auditoría y este `HANDOFF.md`.
+- **Validaciones ejecutadas en la estación de desarrollo (Windows/MSYS):** `bash -n` correcto sobre instalador, tres scripts y suite; `bash tests/test-network.sh` con **56 PASS / 0 FAIL / 2 SKIP**; `shellcheck` y `systemd-analyze` no disponibles, sin instalación de dependencias. `git diff --check` y comprobación de enlaces Markdown ejecutados antes del commit.
+- **Scio:** Dorsett permanece como plataforma física; Scio Control Center será software independiente alojado inicialmente en Dorsett. No se incorpora código de Scio ni se amplía el alcance de esta versión.
+- **Publicación:** commit y `git push -u origin main` autorizados por el propietario; se ejecutan sin force push y sin crear tags ni releases adicionales. Estado final, hash y resultado del push se reportan en el informe de la sesión.
+
+### Último estado antes del commit
+
+`v0.4.0 NOMAD UPDATE` se cierra como versión funcional validada en sus características principales, con pendientes documentados y sin acceso remoto a la Raspberry Pi durante esta intervención.

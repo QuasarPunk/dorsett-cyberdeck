@@ -17,6 +17,7 @@ REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 DORSETT_NET="$REPO_ROOT/software/scripts/dorsett-network.sh"
 SETUP_AP="$REPO_ROOT/software/scripts/setup-hotspot.sh"
 COLLECT_DIAG="$REPO_ROOT/software/scripts/collect-diagnostics.sh"
+INSTALL_SCRIPT="$REPO_ROOT/install.sh"
 SYSTEMD_UNIT="$REPO_ROOT/software/systemd/dorsett-fallback.service"
 
 PASS_COUNT=0
@@ -92,7 +93,7 @@ run_checked() {
 run_static_checks() {
     printf '\n=== 1. Validación estática ===\n'
     local f
-    for f in "$DORSETT_NET" "$SETUP_AP" "$COLLECT_DIAG" "$REPO_ROOT/tests/test-network.sh"; do
+    for f in "$DORSETT_NET" "$SETUP_AP" "$COLLECT_DIAG" "$INSTALL_SCRIPT" "$REPO_ROOT/tests/test-network.sh"; do
         if bash -n "$f"; then
             pass "bash -n: ${f#$REPO_ROOT/}"
         else
@@ -114,6 +115,11 @@ run_static_checks() {
     else
         skip "shellcheck no está instalado en este entorno"
     fi
+
+    local install_content
+    install_content="$(cat "$INSTALL_SCRIPT")"
+    assert_contains "$install_content" "PAGER=cat LC_ALL=C timeout 10s nmcli -f NAME,TYPE,DEVICE connection show" "install.sh lista perfiles sin columnas de autoconexión y con PAGER=cat"
+    assert_not_contains "$install_content" "AUTOCONNECT-PRIORITY connection show" "install.sh no usa el listado nmcli que falló en la Pi"
 
     # Validación básica de la unidad systemd (y systemd-analyze si existe)
     local unit_content
@@ -303,7 +309,14 @@ case "$cmd" in
                             if [[ "$prof" == "${MOCK_AP_PROFILE:-Dorsett-AP}" ]]; then printf 'no\n'; else printf 'yes\n'; fi
                             ;;
                         802-11-wireless-security.key-mgmt) printf 'wpa-psk\n' ;;
-                        802-11-wireless-security.psk) cat "$STATE_DIR/ap.psk" ;;
+                        802-11-wireless-security.wps-method) printf '%s\n' "${MOCK_WPS_METHOD:-1}" ;;
+                        802-11-wireless-security.psk)
+                            if [[ -s "$STATE_DIR/ap.psk" ]]; then
+                                cat "$STATE_DIR/ap.psk"
+                            else
+                                printf '%s\n' "${MOCK_STORED_PSK:-psk-simulada-no-real}"
+                            fi
+                            ;;
                         *) printf 'connection.id:%s\n' "$prof" ;;
                     esac
                 else
@@ -463,6 +476,7 @@ EOF
     export MOCK_NM_RUNNING=running
     export MOCK_WIFI_PRESENT=1
     export MOCK_AP_CAP=yes
+    export MOCK_WPS_METHOD=1
     export MOCK_FAIL_UP=0
     export MOCK_SYSTEMD_RUN_FAIL=0
     export MOCK_NMCLI_DELAY=""
@@ -626,15 +640,23 @@ run_functional_tests() {
     local setup_out
     setup_out="$("$SETUP_AP" --config "$TEST_CFG" --dry-run 2>&1)" || fail "setup-hotspot --dry-run falló: $setup_out"
     assert_contains "$setup_out" "ya existe" "setup-hotspot.sh detecta perfil existente y evita duplicados"
+    assert_contains "$setup_out" "wps-method=1" "setup-hotspot.sh --dry-run refleja WPS deshabilitado en perfiles existentes"
     setup_out="$("$SETUP_AP" --config "$TEST_CFG" --update --dry-run 2>&1)" || fail "setup-hotspot --update --dry-run falló: $setup_out"
     assert_contains "$setup_out" "NO fue activado automáticamente" "setup-hotspot.sh no activa AP por defecto"
+    assert_contains "$setup_out" "wps-method=1" "setup-hotspot.sh --update --dry-run refleja WPS deshabilitado"
     : > "$MOCK_STATE/nmcli.calls"
     setup_out="$(printf '%s\n' 'psk-ficticia:123' 'psk-ficticia:123' |
         "$SETUP_AP" --config "$TEST_CFG" --update --ask 2>&1)" || fail "setup-hotspot --update no guardó la PSK simulada"
     assert_contains "$setup_out" "validado" "El aprovisionamiento interactivo verifica la PSK guardada"
+    assert_contains "$setup_out" "wps-method=1" "La validación final comprueba WPS deshabilitado"
+    assert_contains "$(cat "$MOCK_STATE/nmcli.calls")" "wps-method 1" "El aprovisionamiento aplica wps-method=1 a perfiles nuevos o actualizados"
     assert_not_contains "$setup_out" "psk-ficticia:123" "El aprovisionamiento no imprime la PSK"
     assert_not_contains "$(cat "$MOCK_STATE/nmcli.calls")" "psk-ficticia:123" "La PSK no se pasa en argumentos a nmcli"
     assert_not_contains "$(cat "$MOCK_STATE/nmcli.calls")" "connection up" "El aprovisionamiento real simulado deja el AP inactivo"
+
+    : > "$MOCK_STATE/nmcli.calls"
+    setup_out="$("$SETUP_AP" --config "$TEST_CFG" 2>&1)" || fail "setup-hotspot sin --update falló al ajustar WPS en perfil existente"
+    assert_contains "$(cat "$MOCK_STATE/nmcli.calls")" "wps-method 1" "Un perfil existente sin --update también recibe wps-method=1"
 
     # T19: collect-diagnostics.sh sanitizado (sin MAC/UUID/SSID personales ni --show-secrets)
     reset_mock_state
@@ -680,7 +702,7 @@ main() {
 
     printf '\n=== Resumen ===\n'
     printf 'PASS: %d | FAIL: %d | SKIP: %d\n' "$PASS_COUNT" "$FAIL_COUNT" "$SKIP_COUNT"
-    printf 'NOTA: Pruebas funcionales ejecutadas con mocks. Las pruebas físicas en Raspberry Pi 5 siguen pendientes.\n'
+    printf 'NOTA: Pruebas funcionales ejecutadas con mocks. Las pruebas físicas de v0.4.0 fueron informadas por el propietario; la matriz T01-T19 no está completamente aprobada.\n'
     [[ "$FAIL_COUNT" -eq 0 ]]
 }
 

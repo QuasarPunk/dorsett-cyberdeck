@@ -14,7 +14,9 @@ sudoedit /etc/dorsett/network.env
 
 El instalador comprueba la plataforma, las herramientas requeridas y el soporte AP de `wlan0`. Copia los scripts y la unidad como `root:root`, preserva el contenido de una configuración existente con permisos `0600` y recarga las definiciones de systemd. La conexión activa y el estado de habilitación del servicio se conservan.
 
-Toma de la lista de perfiles que imprime el instalador el nombre exacto del perfil HOME (Wi-Fi, prioridad 100). El perfil de referencia tiene el prefijo `netplan-wlan0-`. Sustituye `home-profile` en `HOME_PROFILE="home-profile"` por ese nombre, manteniendo las comillas. Deja `MOBILE_PROFILE=""` hasta registrar el hotspot del teléfono. Guarda únicamente valores de configuración. La contraseña WPA2 se configura por separado en NetworkManager.
+Durante el despliegue real, la consulta original de perfiles con columnas `AUTOCONNECT` falló; el propietario la sustituyó por `PAGER=cat LC_ALL=C timeout 10s nmcli -f NAME,TYPE,DEVICE connection show` y la instalación terminó correctamente. La causa exacta del fallo no quedó determinada.
+
+Toma de la lista `NAME,TYPE,DEVICE` que imprime el instalador el nombre exacto del perfil HOME (Wi-Fi). Si necesitas confirmar su prioridad `100`, consúltala con `nmcli -f NAME,TYPE,DEVICE,AUTOCONNECT,AUTOCONNECT-PRIORITY connection show`. El perfil de referencia tiene el prefijo `netplan-wlan0-`. Sustituye `home-profile` en `HOME_PROFILE="home-profile"` por ese nombre, manteniendo las comillas. Deja `MOBILE_PROFILE=""` hasta registrar el hotspot del teléfono. Guarda únicamente valores de configuración. La contraseña WPA2 se configura por separado en NetworkManager.
 
 Comprueba que `detected_mode=HOME`, que `wlan0` tiene IPv4, que la subred `10.42.0.0/24` está libre y que los servicios escuchan en direcciones accesibles desde el AP. En una primera instalación, verifica que la unidad figura como `disabled`.
 
@@ -34,7 +36,9 @@ sudo /usr/local/sbin/dorsett-setup-hotspot
 nmcli -f connection.autoconnect,802-11-wireless.mode,802-11-wireless.band,ipv4.method,ipv4.addresses,802-11-wireless-security.key-mgmt,802-11-wireless-security.proto connection show id Dorsett-AP
 ```
 
-Introduce y confirma la contraseña en el aviso oculto del script. Si ya existe un perfil incompleto, usa `sudo /usr/local/sbin/dorsett-setup-hotspot --update` mientras estés en HOME. Comprueba `autoconnect=no`, modo `ap`, banda `bg`, IPv4 `shared` con `10.42.0.1/24` y WPA2 (`wpa-psk`, `rsn`).
+Introduce y confirma la contraseña en el aviso oculto del script. Si ya existe un perfil incompleto, usa `sudo /usr/local/sbin/dorsett-setup-hotspot --update` mientras estés en HOME. Comprueba `autoconnect=no`, modo `ap`, banda `bg`, IPv4 `shared` con `10.42.0.1/24`, WPA2 (`wpa-psk`, `rsn`, `ccmp`) y `802-11-wireless-security.wps-method=1` (WPS deshabilitado). El script aplica esta propiedad tanto al crear el perfil como al actualizar uno existente, incluso sin `--update`, y la verifica en la validación final.
+
+En la prueba física, Windows pidió una entrada de ocho dígitos compatible con un PIN WPS; el propietario desactivó WPS con `sudo nmcli connection modify Dorsett-AP 802-11-wireless-security.wps-method 1` y las conexiones posteriores de Windows y Android fueron exitosas. No se afirma que WPS fuera la causa demostrada de todos los problemas iniciales.
 
 ## 3. Comprobar la recuperación mientras HOME sigue disponible
 
@@ -80,6 +84,19 @@ sudo dorsett-network --rollback-seconds 300 home
 sudo dorsett-network status
 sudo dorsett-network confirm
 ```
+
+### Comandos de referencia para la conmutación
+
+```bash
+sudo dorsett-network status
+sudo dorsett-network --rollback-seconds 300 home
+sudo dorsett-network --rollback-seconds 300 nomad
+sudo dorsett-network confirm
+```
+
+La conmutación interrumpe momentáneamente la conexión. Usa siempre una ventana de reversión y ejecuta `confirm` **solo después de verificar acceso desde un cliente conectado a la nueva red**; de lo contrario, el temporizador restaura el modo anterior. La reversión de 300 segundos quedó comprobada físicamente en la prueba NOMAD.
+
+NOMAD no retorna automáticamente a HOME cuando reaparece el router; el comportamiento es intencional. El regreso manual desde NOMAD después del arranque aislado queda pendiente de confirmación específica. Resultados reales: [auditoría de despliegue](audits/2026-11-26-nomad-deployment.md).
 
 ## 5. Habilitar el fallback y probar un arranque aislado
 

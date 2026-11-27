@@ -4,15 +4,18 @@ Este documento constituye la memoria técnica viva del **Proyecto Dorsett** (`do
 
 > **Política de sanitización pública:** esta memoria técnica no almacena contraseñas, claves PSK, claves privadas SSH, direcciones MAC personales, UUID reales de perfiles ni nombres personales de redes domésticas o secundarias. Dichos valores locales deben residir únicamente en el sistema objetivo (`/etc/dorsett/network.env` o perfiles protegidos de `NetworkManager`), excluidos de Git.
 
+> **Origen de las pruebas físicas (`2026-11-26`/`2026-11-27`):** ejecutadas por el propietario sobre la Raspberry Pi 5. El agente de IA solo transcribió los resultados y ejecutó validaciones estáticas y simuladas en la estación de desarrollo.
+
 ---
 
 ## Convención de estados
 
 Cada dato técnico significativo se etiqueta explícitamente con uno de los siguientes estados:
 
-- **`CONFIRMED`**: verificado mediante salida real del sistema en la auditoría del `2026-11-24`.
+- **`CONFIRMED`**: verificado en hardware por el propietario, en la auditoría del `2026-11-24` o en las pruebas físicas del `2026-11-26`/`2026-11-27` documentadas en `docs/audits/`.
+- **`DEPLOYED`**: instalado en la Raspberry Pi real e informado por el propietario.
 - **`REPORTED`**: informado por el propietario o por documentación previa del repositorio sin verificación directa por comandos recientes.
-- **`IMPLEMENTED`**: desarrollado en el repositorio (`v0.4.0`), pendiente de despliegue y validación física en la Raspberry Pi.
+- **`IMPLEMENTED`**: desarrollado en el repositorio; no implica por sí solo despliegue o validación física.
 - **`PLANNED`**: previsto para etapas futuras del proyecto.
 - **`UNKNOWN`**: información todavía no disponible o no inspeccionada.
 
@@ -59,12 +62,12 @@ Cada dato técnico significativo se etiqueta explícitamente con uno de los sigu
 
 - **Capa base (operativa en host):** Debian 13.6 ARM64 + `systemd` + `NetworkManager 1.52.1` [`CONFIRMED`, `2026-11-24`].
 - **Capa de acceso remoto y archivos (operativa en host):** OpenSSH (`ssh`), `WayVNC` en TCP `5900` y `5901` (`wayvnc-lan.service` de usuario), Samba (`smbd`) y `avahi-daemon` [`CONFIRMED`, `2026-11-24`].
-- **Capa de conectividad autónoma `v0.4.0` (en repositorio):**
-  - `software/scripts/dorsett-network.sh` — CLI para consultar estado, ejecutar *fallback* al arranque y realizar conmutaciones controladas [`IMPLEMENTED`, `2026-11-24`].
-  - `software/scripts/setup-hotspot.sh` — aprovisionamiento seguro del perfil `Dorsett-AP` sin activarlo automáticamente [`IMPLEMENTED`, `2026-11-24`].
-  - `software/scripts/collect-diagnostics.sh` — recolección sanitizada de estado en solo lectura [`IMPLEMENTED`, `2026-11-24`].
-  - `software/systemd/dorsett-fallback.service` — unidad *oneshot* de sistema tras `NetworkManager.service` [`IMPLEMENTED`, `2026-11-24`].
-  - `software/config/network.env.example` — plantilla de variables externas [`IMPLEMENTED`, `2026-11-24`].
+- **Capa de conectividad autónoma `v0.4.0` (en repositorio y desplegada):**
+  - `software/scripts/dorsett-network.sh` — CLI para consultar estado, ejecutar *fallback* al arranque y realizar conmutaciones controladas [`IMPLEMENTED` / `DEPLOYED`; conmutación con reversión de 300 s `CONFIRMED`, `2026-11-26`].
+  - `software/scripts/setup-hotspot.sh` — aprovisionamiento seguro del perfil `Dorsett-AP`, con WPS deshabilitado (`wps-method 1`) para perfiles nuevos y existentes, sin activarlo automáticamente [`IMPLEMENTED` / `DEPLOYED`, `2026-11-26`].
+  - `software/scripts/collect-diagnostics.sh` — recolección sanitizada de estado en solo lectura [`IMPLEMENTED`; validación simulada].
+  - `software/systemd/dorsett-fallback.service` — unidad *oneshot* de sistema tras `NetworkManager.service`, habilitada y probada en arranque sin router [`DEPLOYED` / `CONFIRMED`, `2026-11-26`].
+  - `software/config/network.env.example` — plantilla de variables externas [`IMPLEMENTED` / `DEPLOYED`].
 
 ---
 
@@ -115,9 +118,9 @@ Estado observado mediante `nmcli device status` e `ip` el `2026-11-24`:
 
 | Modo | Nombre de perfil | Rol | Autoconexión / Prioridad | Estado |
 | :--- | :--- | :--- | :--- | :--- |
-| `HOME` | Configurado en `HOME_PROFILE` (`/etc/dorsett/network.env`) | Cliente Wi-Fi doméstico | Sí / `100` | `CONFIRMED` en host (pendiente integración env) |
-| `MOBILE` | Configurado en `MOBILE_PROFILE` (hotspot Galaxy A10) | Cliente Wi-Fi móvil | Sí / `50` | `PLANNED` / `UNKNOWN` (SSID real pendiente) |
-| `NOMAD` | `Dorsett-AP` (SSID `Dorsett-AP`) | Access Point (`10.42.0.1/24`, `shared`) | No / N/A | `IMPLEMENTED` en `setup-hotspot.sh`, no creado en Pi |
+| `HOME` | Configurado en `HOME_PROFILE` (`/etc/dorsett/network.env`) | Cliente Wi-Fi doméstico | Sí / `100` | `CONFIRMED` en host e integrado en la configuración local (`2026-11-26`) |
+| `MOBILE` | Configurado en `MOBILE_PROFILE` (hotspot Galaxy A10) | Cliente Wi-Fi móvil | Sí / `50` | `PLANNED` / `UNKNOWN` (perfil vacío durante la prueba; Galaxy A10 actuó como cliente NOMAD) |
+| `NOMAD` | `Dorsett-AP` (SSID `Dorsett-AP`) | Access Point (`10.42.0.1/24`, `shared`) | No / N/A | `DEPLOYED` / `CONFIRMED`; creado, WPS deshabilitado y activado automáticamente sin router (`2026-11-26`) |
 
 ---
 
@@ -131,7 +134,7 @@ Estado observado mediante `nmcli device status` e `ip` el `2026-11-24`:
 | `smbd` (Samba) | TCP `445` (IPv4 e IPv6) | Activo | Comparte `~/compartido` (`REPORTED`) | `CONFIRMED` (servicio) / `REPORTED` (ruta) |
 | `avahi-daemon` | mDNS | Activo | Resolución esperada `raspi-ali.local` | `CONFIRMED` (daemon) / `UNKNOWN` (resolución AP) |
 | `NetworkManager` | D-Bus / control de red | Activo (`1.52.1`) | Gestor exclusivo de conectividad | `CONFIRMED` |
-| `dorsett-fallback.service` | N/A (`oneshot`) | Definido en `software/systemd/` | No instalado ni habilitado en la Pi | `IMPLEMENTED` |
+| `dorsett-fallback.service` | N/A (`oneshot`) | Instalado y habilitado; activó `Dorsett-AP` en arranque sin router | Único disparo al arranque; sin retorno automático a HOME | `DEPLOYED` / `CONFIRMED` (`2026-11-26`) |
 
 ---
 
@@ -145,9 +148,9 @@ Estado observado mediante `nmcli device status` e `ip` el `2026-11-24`:
 - `/usr/sbin/dnsmasq` — binario de `dnsmasq` instalado [`CONFIRMED`, `2026-11-24`].
 - `/etc/os-release` — identificación del sistema base [`CONFIRMED`, `2026-11-24`].
 
-### Rutas previstas para despliegue controlado (`v0.4.0`) — `IMPLEMENTED` / no desplegadas aún
+### Rutas de despliegue (`v0.4.0`) — `DEPLOYED` / `CONFIRMED`
 
-`bash install.sh --check` comprueba los requisitos de la Pi. `sudo bash install.sh` instala las copias de sistema y conserva el contenido de `network.env` en actualizaciones. El propietario registra HOME con el nombre exacto y puede dejar `MOBILE_PROFILE=""`. El aprovisionamiento de NOMAD guarda la PSK en NetworkManager con el historial del editor bloqueado. La habilitación del fallback queda para después de la prueba manual. [Procedimiento de despliegue](INSTALLATION.md)
+`bash install.sh --check` comprueba los requisitos de la Pi. `sudo bash install.sh` instala las copias de sistema y conserva el contenido de `network.env` en actualizaciones. El propietario registró HOME con el nombre exacto y dejó `MOBILE_PROFILE=""`. El aprovisionamiento de NOMAD guarda la PSK en NetworkManager con el historial del editor bloqueado. Tras la prueba manual se habilitó el fallback. La consulta de perfiles del instalador se corrigió a `PAGER=cat LC_ALL=C timeout 10s nmcli -f NAME,TYPE,DEVICE connection show`; la causa exacta del fallo previo no quedó determinada. [Procedimiento de despliegue](INSTALLATION.md)
 
 - `/usr/local/bin/dorsett-network`
 - `/usr/local/sbin/dorsett-setup-hotspot`
@@ -160,7 +163,7 @@ Estado observado mediante `nmcli device status` e `ip` el `2026-11-24`:
 ## 10. Dependencias instaladas
 
 - `NetworkManager` (`1.52.1`) [`CONFIRMED`].
-- `dnsmasq` (`/usr/sbin/dnsmasq`) [`CONFIRMED`, funcionamiento con `ipv4.method shared` aún no verificado].
+- `dnsmasq` (`/usr/sbin/dnsmasq`) [`CONFIRMED`; iniciado bajo `ipv4.method shared`, rango DHCP observado `10.42.0.10`–`10.42.0.254` y concesión al Galaxy A10 (`2026-11-26`)].
 - `openssh-server` (`ssh`), `samba` (`smbd`), `avahi-daemon`, `wayvnc`, `iw`, `iproute2` (`ip`, `ss`) [`CONFIRMED`].
 - `shellcheck` / herramientas adicionales de validación: no verificadas en la Raspberry Pi [`UNKNOWN`].
 
@@ -171,7 +174,9 @@ Estado observado mediante `nmcli device status` e `ip` el `2026-11-24`:
 - Perfil doméstico con DHCP en `wlan0`, IP observada `192.168.1.52/24`, gateway `192.168.1.1`, métrica `600`, prioridad `100` [`CONFIRMED`].
 - Reserva DHCP estática en el router para `192.168.1.52`: reportada por el usuario como IP estable, pero reserva en router no comprobada directamente [`REPORTED` / `UNKNOWN`].
 - Persistencia de sesión de usuario mediante `loginctl enable-linger` para `wayvnc-lan.service`: informada en `README.md` previo, pendiente de verificación directa [`REPORTED` / `UNKNOWN`].
-- Dirección propuesta del modo `NOMAD`: `10.42.0.1/24` con `ipv4.method shared`, canal `6` (`2.4 GHz`, banda `bg`), WPA2-PSK/CCMP, `autoconnect=no`, IPv6 deshabilitado [`IMPLEMENTED` en `setup-hotspot.sh`].
+- Dirección del modo `NOMAD`: `10.42.0.1/24` con `ipv4.method shared`, canal `6` (`2.4 GHz`, banda `bg`), WPA2-PSK/RSN/CCMP, `autoconnect=no`, IPv6 deshabilitado y `802-11-wireless-security.wps-method 1` [`DEPLOYED` / `CONFIRMED` en `2026-11-26`].
+- Resultados físicos de NOMAD: Windows con IPv4 `10.42.0.212`, cuatro `ping` a `10.42.0.1` recibidos (`0 %` de pérdida, promedio `5 ms`), SSH, TCP `5901`/`445`, Samba con credenciales del usuario Samba y TightVNC desde la Tablet conectada al AP [`CONFIRMED` por el propietario].
+- Advertencia `CAP_CHOWN` de `dnsmasq` observada sin impedir la concesión DHCP [`CONFIRMED`].
 
 ---
 
@@ -181,6 +186,8 @@ Estado observado mediante `nmcli device status` e `ip` el `2026-11-24`:
 - Existen **dos instancias de `WayVNC`**: una en TCP `5900` y otra dedicada en TCP `5901` (`-r 0.0.0.0 5901`) para compatibilidad con TightVNC Viewer en la Tablet X-View con Windows 8.1 de 32 bits [`CONFIRMED` puertos/proceso / `REPORTED` motivo de compatibilidad].
 - Se observó la advertencia en WayVNC:
   `Warning: ../src/output.c:300: Output NOOP-1 power state failure.` [`CONFIRMED`].
+- Los problemas iniciales de VNC se debieron a que la Tablet permanecía conectada al router doméstico y no a `Dorsett-AP`; al conectarla al AP, TightVNC funcionó [`CONFIRMED` por el propietario].
+- La Tablet Windows 8.1 y TightVNC son actualmente una solución de visualización provisional; la pantalla HDMI directa es un objetivo futuro.
 
 ---
 
@@ -191,6 +198,9 @@ Estado observado mediante `nmcli device status` e `ip` el `2026-11-24`:
 3. **Perfil secundario 2.4 GHz con autoconexión habilitada:** su propósito y autorización no están confirmados (`UNKNOWN`); podría competir si el perfil doméstico no está disponible.
 4. **Windows 8.1 de 32 bits en la Tablet X-View:** sistema operativo sin soporte regular de seguridad; requiere precauciones de aislamiento de red y compatibilidad de cifrado/autenticación en VNC y SMB [`REPORTED`].
 5. **Ausencia de alimentación portátil:** `v0.4.0` resuelve la autonomía de red (`NOMAD`), no la autonomía energética por baterías [`REPORTED`].
+6. **Solicitud de PIN de ocho dígitos en Windows:** observada en la primera prueba, compatible con una solicitud WPS; no se afirma que WPS causara todos los problemas iniciales. Se desactivó con `wps-method 1` [`CONFIRMED` por el propietario; `IMPLEMENTED` en `setup-hotspot.sh`].
+7. **Advertencia `CAP_CHOWN` de `dnsmasq`:** observada durante el despliegue, sin impedir DHCP [`CONFIRMED`].
+8. **Fallo original del instalador:** la consulta de `nmcli` con columnas de autoconexión falló en la Pi; se sustituyó por un listado con `PAGER=cat LC_ALL=C` y `NAME,TYPE,DEVICE`. Causa exacta [`UNKNOWN`] [`CONFIRMED` la corrección].
 
 ---
 
@@ -201,7 +211,8 @@ Estado observado mediante `nmcli device status` e `ip` el `2026-11-24`:
   - Arquitectura en tres modos (`HOME`, `MOBILE`, `NOMAD`).
   - Conmutación excluyente cliente/AP en `wlan0` (sin concurrencia STA+AP en `v0.4.0`).
   - Uso de `ipv4.method shared` (`10.42.0.1/24`) aprovechando `dnsmasq` vía NetworkManager.
-  - *Fallback* limitado al arranque en `v0.4.0` (sin retorno automático desde `NOMAD` hacia `HOME` para evitar cortar sesiones VNC/SSH activas).
+  - *Fallback* limitado al arranque en `v0.4.0` (sin retorno automático desde `NOMAD` hacia `HOME` para evitar cortar sesiones VNC/SSH activas); comprobado físicamente al reaparecer la red doméstica.
+  - `Dorsett-AP` conserva WPA2-PSK/RSN/CCMP y mantiene WPS deshabilitado (`wps-method 1`).
   - Ninguna dependencia de Internet para validar conectividad local.
 
 ---
@@ -217,15 +228,18 @@ Estado observado mediante `nmcli device status` e `ip` el `2026-11-24`:
 - Reserva DHCP efectiva en el router doméstico para `192.168.1.52`.
 - Propósito y autorización del perfil Wi-Fi secundario `2.4 GHz`.
 - SSID y capacidad de comunicación cliente-a-cliente (*AP isolation*) del hotspot del Samsung Galaxy A10 (`MOBILE`).
-- Funcionamiento real de `dnsmasq` invocado por `NetworkManager` con `ipv4.method shared` y acceso real desde la Tablet X-View en `10.42.0.1`.
+- Configuración y validación del perfil `MOBILE` con el hotspot del Galaxy A10 (`MOBILE_PROFILE` quedó vacío y el teléfono fue cliente de NOMAD).
+- Regreso manual desde NOMAD a HOME después del arranque aislado (confirmación específica pendiente).
+- Resultados físicos de los escenarios no cubiertos por la auditoría de `2026-11-26`, incluidos `T09` (mDNS), `T14`–`T19` y las variantes de recuperación dinámica.
+- Causa exacta del fallo original del listado `nmcli` en el instalador.
 
 ---
 
 ## 16. Última auditoría
 
-- **Fecha:** `2026-11-24`.
-- **Archivo:** [docs/audits/2026-11-24-system-audit.md](audits/2026-11-24-system-audit.md).
-- **Alcance:** inspección de sistema operativo, NetworkManager, interfaces, capacidades Wi-Fi y servicios activos sobre la Raspberry Pi real (transcripción estructurada en el repositorio).
+- **Fecha:** `2026-11-26`/`2026-11-27`.
+- **Archivo:** [docs/audits/2026-11-26-nomad-deployment.md](audits/2026-11-26-nomad-deployment.md).
+- **Alcance:** despliegue NOMAD informado por el propietario: instalación, DHCP, SSH, Samba, TightVNC, temporizador, arranque sin router, transferencia de archivos y persistencia de NOMAD. Auditoría anterior: [2026-11-24-system-audit.md](audits/2026-11-24-system-audit.md).
 
 ---
 
@@ -239,3 +253,4 @@ Estado observado mediante `nmcli device status` e `ip` el `2026-11-24`:
 - [docs/SECURITY.md](SECURITY.md) — controles de seguridad y consideraciones con Windows 8.1.
 - [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md) — diagnóstico de fallos frecuentes.
 - [tests/network-test-plan.md](../tests/network-test-plan.md) — plan de pruebas T01–T19.
+- [docs/development/HANDOFF.md](development/HANDOFF.md) — registro de cierre y validaciones de la versión.

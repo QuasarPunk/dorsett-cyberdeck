@@ -49,7 +49,7 @@ ap_cap="$(timeout 10s nmcli -g WIFI-PROPERTIES.AP device show wlan0)" \
 [[ "$ap_cap" == yes ]] || die 'wlan0 no declara soporte para modo AP.'
 nmcli --version
 printf 'Perfiles locales para identificar HOME y, si está registrado, MOBILE.\n'
-timeout 10s nmcli -f NAME,TYPE,DEVICE,AUTOCONNECT,AUTOCONNECT-PRIORITY connection show \
+PAGER=cat LC_ALL=C timeout 10s nmcli -f NAME,TYPE,DEVICE connection show \
     || die 'No se pudieron consultar los perfiles.'
 
 repo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"

@@ -2,38 +2,47 @@
 
 Este documento define los **19 escenarios de verificación (`T01`–`T19`)** para validar la arquitectura de modos `HOME`, `MOBILE` y `NOMAD`, el servicio `dorsett-fallback.service`, la recuperación remota y el sistema de diagnóstico.
 
-> **Regla de veracidad:** las pruebas automatizadas mediante `tests/test-network.sh` utilizan *mocks* de `nmcli`, `ip`, `systemd-run`, `systemctl`, `iw`, `ss`, `journalctl` y `loginctl`. **Nunca sustituyen a las pruebas físicas sobre la Raspberry Pi 5 real.** Ningún escenario físico puede declararse aprobado sin evidencia directa en hardware.
+> **Regla de veracidad:** las pruebas automatizadas mediante `tests/test-network.sh` utilizan *mocks* de `nmcli`, `ip`, `systemd-run`, `systemctl`, `iw`, `ss`, `journalctl` y `loginctl`. **Nunca sustituyen a las pruebas físicas sobre la Raspberry Pi 5 real.** Las pruebas físicas de los días 26 y 27 de noviembre de 2026 fueron ejecutadas por el **propietario**, no por el agente de IA, y se registran en [docs/audits/2026-11-26-nomad-deployment.md](../docs/audits/2026-11-26-nomad-deployment.md).
 
 ---
 
 ## Matriz de escenarios (`T01`–`T19`)
 
-| ID | Escenario | Condición / Entrada | Resultado esperado | Cobertura automatizada (Mock) | Prueba física (Raspberry Pi 5) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **T01** | `HOME` disponible al arrancar | `wlan0` conectado a `HOME_PROFILE` con IPv4 válida (`192.168.1.52/24`) | `HOME` permanece activo sin interrupciones | `tests/test-network.sh` | Pendiente |
-| **T02** | `HOME` disponible sin Internet | Router doméstico sin salida WAN (`192.168.1.52/24`) | `HOME` permanece activo; no hay *fallback* ni *ping* externo | `tests/test-network.sh` | Pendiente |
-| **T03** | `HOME` ausente y `MOBILE` disponible | `wlan0` conectado a `MOBILE_PROFILE` con IPv4 válida del smartphone | `MOBILE` permanece activo | `tests/test-network.sh` | Pendiente |
-| **T04** | `HOME` y `MOBILE` ausentes | `wlan0` desconectado tras ventana inicial (`FALLBACK_TIMEOUT`) | Se activa `Dorsett-AP` (`10.42.0.1/24`, modo `NOMAD`) | `tests/test-network.sh` | Pendiente |
-| **T05** | `NOMAD` y conexión de Tablet | Tablet X-View (Win 8.1) se asocia al SSID `Dorsett-AP` | Asignación DHCP válida en `10.42.0.x` vía `dnsmasq` | No aplicable (requiere radio física + Tablet) | Pendiente |
-| **T06** | `NOMAD` y acceso SSH | Cliente conectado a `Dorsett-AP` abre SSH hacia `10.42.0.1:22` | Autenticación correcta y consola operativa | No aplicable (requiere hardware) | Pendiente |
-| **T07** | `NOMAD` y acceso TightVNC | TightVNC Viewer en Tablet Win 8.1 apunta a `10.42.0.1::5901` | Escritorio Wayland/labwc visible y control táctil funcional | No aplicable (requiere hardware) | Pendiente |
-| **T08** | `NOMAD` y acceso Samba | Cliente accede a `\\10.42.0.1` | Lectura y escritura autorizadas sobre `~/compartido` | No aplicable (requiere hardware) | Pendiente |
-| **T09** | Resolución mDNS | Cliente resuelve `raspi-ali.local` en `HOME` y `NOMAD` | Resuelve cuando el cliente/red lo soporta; si falla, IP directa es operativa | No aplicable (requiere red real) | Pendiente |
-| **T10** | Reaparición de `HOME` con `NOMAD` activo | `Dorsett-AP` activo mientras vuelve señal del router doméstico | `dorsett-network fallback` / servicio no interrumpe `NOMAD` | `tests/test-network.sh` | Pendiente |
-| **T11** | Regreso manual a `HOME` | Operador ejecuta `dorsett-network home` | Transición controlada a `HOME_PROFILE` y recuperación de servicios | `tests/test-network.sh` (simulado) | Pendiente |
-| **T12** | Fallo durante una transición remota | Transición manual desde sesión SSH sin `dorsett-network confirm` | Temporizador independiente (`systemd-run`) ejecuta `rollback` y restaura perfil previo | `tests/test-network.sh` (mock `systemd-run` + ejecución `rollback`) | Pendiente |
-| **T13** | Reinicio de la Raspberry Pi | Reboot completo con `dorsett-fallback.service` habilitado | Persistencia de perfiles y selección automática correcta al arranque | No aplicable (requiere reboot físico) | Pendiente |
-| **T14** | Perfil AP inexistente | Se ejecuta `fallback` o `nomad` sin existir `Dorsett-AP` | Error informativo (`exit 5`), sin cambios destructivos | `tests/test-network.sh` | Pendiente |
-| **T15** | Perfil Wi-Fi desconocido activo | `wlan0` conectado a perfil no listado como `HOME`/`MOBILE`/`AP` | Aviso en logs y preservación de conexión sin adoptarlo | `tests/test-network.sh` | Pendiente |
-| **T16** | DHCP lento | `wlan0` permanece en estado `activating` (ej. `70`) más allá de `FALLBACK_TIMEOUT` | Espera acotada sin bucle infinito; transición controlada a `NOMAD` | `tests/test-network.sh` | Pendiente |
-| **T17** | Ejecuciones simultáneas | Dos invocaciones paralelas de `dorsett-network` | El bloqueo (`flock` / respaldo atómico) impide colisiones (`exit 4`) | `tests/test-network.sh` | Pendiente |
-| **T18** | Fallo de NetworkManager o interfaz ausente | `NetworkManager` detenido o `wlan0` inexistente | Diagnóstico claro y salida controlada (`exit 3`) | `tests/test-network.sh` | Pendiente |
-| **T19** | Captura de diagnósticos | Ejecución de `collect-diagnostics.sh` | Informe Markdown completo, sin secretos, sin `--show-secrets` y MAC/UUID/SSID sanitizados | `tests/test-network.sh` | Pendiente |
+| ID | Escenario | Cobertura automatizada (Mock) | Estado físico documentado |
+| :--- | :--- | :--- | :--- |
+| **T01** | `HOME` disponible al arrancar | `tests/test-network.sh` | **Parcial:** HOME reconocido y operativo; el arranque con HOME no fue descrito explícitamente en la auditoría de despliegue |
+| **T02** | `HOME` disponible sin Internet | `tests/test-network.sh` | **Pendiente** de escenario físico específico |
+| **T03** | `HOME` ausente y `MOBILE` disponible | `tests/test-network.sh` | **Pendiente:** `MOBILE_PROFILE=""`; el Galaxy A10 fue cliente de NOMAD, no perfil móvil de Dorsett |
+| **T04** | `HOME` y `MOBILE` ausentes → `Dorsett-AP` | `tests/test-network.sh` | **Confirmado:** arranque real sin router con redes secundarias gestionadas por el propietario; AP activado automáticamente |
+| **T05** | `NOMAD` y concesión DHCP | No aplicable (radio + clientes reales) | **Confirmado:** rango `10.42.0.10`–`10.42.0.254`; Galaxy A10 y Windows recibieron IP; advertencia `CAP_CHOWN` no bloqueante |
+| **T06** | `NOMAD` y acceso SSH | No aplicable (requiere hardware) | **Confirmado:** autenticación SSH sobre `10.42.0.1` |
+| **T07** | `NOMAD` y acceso TightVNC | No aplicable (requiere hardware) | **Confirmado:** acceso desde la Tablet cuando se conectó a `Dorsett-AP`; el fallo inicial se debió a que estaba en el router doméstico |
+| **T08** | `NOMAD` y acceso Samba | No aplicable (requiere hardware) | **Confirmado:** TCP `445` accesible y acceso con credenciales del usuario Samba; transferencia real de archivos sin router |
+| **T09** | Resolución mDNS | No aplicable (requiere red real) | **Pendiente:** la IP `10.42.0.1` es el método de referencia |
+| **T10** | Reaparición de HOME con NOMAD activo | `tests/test-network.sh` | **Confirmado:** NOMAD persistió al reaparecer la red doméstica; retorno automático intencionalmente ausente |
+| **T11** | Regreso manual a HOME | `tests/test-network.sh` (simulado) | **Confirmado en pruebas anteriores**; queda pendiente una confirmación específica del regreso manual desde NOMAD después del arranque aislado |
+| **T12** | Fallo durante transición remota y rollback | `tests/test-network.sh` (mock `systemd-run` + `rollback`) | **Parcial:** recuperación temporizada de 300 s comprobada físicamente en la prueba NOMAD; no se documentó un fallo de transición exacto |
+| **T13** | Reinicio de la Raspberry Pi con fallback | No aplicable (requiere reboot físico) | **Confirmado:** arranque real sin router, `dorsett-fallback.service` habilitado y AP activado |
+| **T14** | Perfil AP inexistente | `tests/test-network.sh` | **Pendiente** en hardware; validado solo con mocks |
+| **T15** | Perfil Wi-Fi desconocido activo | `tests/test-network.sh` | **Pendiente** como escenario controlado; las redes secundarias fueron gestionadas por el propietario antes de la prueba aislada |
+| **T16** | DHCP lento / link-local | `tests/test-network.sh` | **Pendiente** en hardware |
+| **T17** | Ejecuciones simultáneas | `tests/test-network.sh` | **Pendiente** en hardware |
+| **T18** | NetworkManager detenido o interfaz ausente | `tests/test-network.sh` | **Pendiente** en hardware |
+| **T19** | Captura de diagnósticos sanitizados | `tests/test-network.sh` | **Pendiente** en hardware; saneamiento verificado con mocks |
 
 ---
 
-## Criterio de aprobación para despliegue
+## Verificación adicional del empaquetado
 
-1. `tests/test-network.sh` debe pasar al 100% en entorno de desarrollo (validación estática + *mocks*).
-2. Durante la fase de despliegue controlado en la Raspberry Pi 5 real, se deben ejecutar y registrar en una nueva auditoría fechada en `docs/audits/` los resultados reales de `T01`–`T19`.
-3. `dorsett-fallback.service` solo se habilitará (`systemctl enable`) después de superar `T05`–`T08`, `T11` y `T12` en hardware real.
+- `install.sh`: corrección de la consulta de perfiles incorporada y comprobada estáticamente (`PAGER=cat LC_ALL=C`, columnas `NAME,TYPE,DEVICE`); la causa del fallo original no quedó determinada.
+- `setup-hotspot.sh`: `wps-method 1` aplicado a perfiles nuevos y existentes, reflejado en `--dry-run` y verificado en la validación final; WPA2/RSN/CCMP se mantienen.
+- Resultado local de la suite: **56 PASS / 0 FAIL / 2 SKIP**. `shellcheck` y `systemd-analyze` no estaban disponibles.
+
+---
+
+## Criterio de cierre de `v0.4.0`
+
+1. La suite simulada pasa sin fallos; la cobertura con mocks no se presenta como evidencia de hardware.
+2. La auditoría [2026-11-26-nomad-deployment.md](../docs/audits/2026-11-26-nomad-deployment.md) registra los resultados físicos informados por el propietario.
+3. `HOME` y `NOMAD` se declaran operativos; `NOMAD` incluye arranque autónomo. `MOBILE` queda pendiente de configuración y validación.
+4. **No se declaran aprobados todos los escenarios `T01`–`T19`.** Quedan pendientes el regreso manual tras arranque aislado, la recuperación dinámica durante la ejecución y la interfaz gráfica.

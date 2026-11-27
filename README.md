@@ -22,8 +22,8 @@ Más allá de actuar como estación personal portátil y servidor Linux *headles
 
 - Consolidar una infraestructura LAN autónoma sin requerir salida a Internet.
 - Mantener acceso remoto confiable mediante SSH, WayVNC y Samba desde tablet, PC de escritorio y smartphone.
-- Incorporar conectividad resiliente en tres modos (`HOME`, `MOBILE` y `NOMAD`) con conmutación controlada y respaldo al arrancar (*v0.4.0 — Nomad Update*, actualmente implementado en código y pendiente de validación en hardware real).
-- Separar explícitamente la **autonomía de red** (en desarrollo en `v0.4.0`) de la **autonomía energética** (planificada para etapas posteriores con baterías y gestión de energía).
+- Incorporar conectividad resiliente en tres modos (`HOME`, `MOBILE` y `NOMAD`) con conmutación controlada y respaldo al arrancar (*v0.4.0 — Nomad Update*, validada físicamente en sus características principales).
+- Separar explícitamente la **autonomía de red** (validada en `v0.4.0`) de la **autonomía energética** (planificada para etapas posteriores con baterías y gestión de energía).
 
 ---
 
@@ -34,7 +34,7 @@ Más allá de actuar como estación personal portátil y servidor Linux *headles
 - **Almacenamiento local NAS:** servidor `smbd` (Samba) en el puerto TCP `445` compartiendo el directorio de usuario configurado (`~/compartido`).
 - **Descubrimiento mDNS:** `avahi-daemon` activo para resolución local (`.local`), manteniendo la conexión por IP como método de referencia.
 - **Priorización de red doméstica:** `NetworkManager` activo con prioridad máxima (`100`) para el perfil autorizado de red local.
-- **Infraestructura Nomad Update (en preparación):** scripts `dorsett-network`, `setup-hotspot`, `collect-diagnostics`, unidad `dorsett-fallback.service` y plan de pruebas simuladas listos para fase de despliegue controlado.
+- **Infraestructura Nomad Update (`v0.4.0`):** scripts `dorsett-network`, `setup-hotspot`, `collect-diagnostics`, unidad `dorsett-fallback.service` y plan de pruebas simuladas desplegados y validados en Raspberry Pi 5 en sus funciones principales.
 
 ---
 
@@ -88,10 +88,44 @@ flowchart TD
 | **v0.1.0 — Remote Access Foundation** | Confirmado en hardware | SSH (`22`), WayVNC (`5900`/`5901`), `wayvnc-lan.service` y acceso desde Tablet Windows 8.1 |
 | **v0.2.0 — Local Network Ecosystem** | Confirmado / Reportado | Samba (`445`) operativo sobre directorio compartido e integración multi-dispositivo |
 | **v0.3.0 — Network Stability** | Confirmado en auditoría | Priorización del perfil doméstico (`100`) y auditoría del sistema (2026-11-24) |
-| **v0.4.0 — Nomad Update (Red)** | Implementado en repo (sin validar en Pi) | Scripts, unidad systemd y pruebas simuladas listos; el modo `NOMAD` **no** está declarado completo hasta superar pruebas reales |
+| **v0.4.0 — Nomad Update (Red)** | Validada en hardware (características principales) | `HOME` y `NOMAD` operativos, incluido arranque autónomo; `MOBILE` pendiente. Auditoría: [2026-11-26-nomad-deployment.md](docs/audits/2026-11-26-nomad-deployment.md) |
 | **Autonomía energética** | Planificado | Pendiente de diseño de alimentación por baterías y gestión térmica (etapas v0.8.0–v0.9.0) |
 
 > **Nota importante sobre autonomía:** la actualización `v0.4.0` resuelve la **autonomía de red** (operar sin router externo), pero la **autonomía energética** de la CyberDeck sigue pendiente de implementación física.
+
+### Estado funcional de `v0.4.0`
+
+- **`HOME`:** operativo y reconocido correctamente.
+- **`NOMAD`:** operativo, incluido el arranque autónomo sin router.
+- **`MOBILE`:** pendiente de configuración del perfil y validación; el Galaxy A10 fue validado como cliente de NOMAD.
+- **Recuperación temporizada:** comprobada físicamente en la prueba NOMAD de 300 segundos.
+- **Regreso a HOME:** comprobado en pruebas anteriores.
+- **Regreso manual desde NOMAD tras el arranque aislado:** pendiente de confirmación específica.
+- **Recuperación dinámica ante caídas durante la ejecución:** no implementada.
+- **Interfaz gráfica:** pendiente.
+
+#### Manual rápido de comandos
+
+```bash
+sudo dorsett-network status
+sudo dorsett-network --rollback-seconds 300 home
+sudo dorsett-network --rollback-seconds 300 nomad
+sudo dorsett-network confirm
+```
+
+La conmutación interrumpe momentáneamente la conexión: el temporizador de reversión permite recuperar el modo anterior si la nueva red no funciona. **Confirma solo después de verificar el acceso desde un cliente conectado a la nueva red**, ejecutando `sudo dorsett-network confirm` para cancelar la reversión automática.
+
+Cuando NOMAD reaparece con el router doméstico, Dorsett **no retorna automáticamente a HOME**: el comportamiento es intencional para no cortar sesiones SSH o TightVNC activas. El regreso se realiza manualmente o tras un nuevo arranque.
+
+#### Acceso en NOMAD
+
+| Servicio | Desde la red `Dorsett-AP` |
+| :--- | :--- |
+| SSH | `ssh <usuario>@10.42.0.1` |
+| TightVNC Viewer | `10.42.0.1::5901` |
+| Samba (Windows) | `\\10.42.0.1` con el usuario y la contraseña Samba configurados en el sistema |
+
+La Tablet Windows 8.1 con TightVNC constituye actualmente una **solución de visualización provisional**, no una pantalla integrada definitiva.
 
 ---
 
@@ -114,8 +148,11 @@ dorsett-cyberdeck/
 │   ├── SECURITY.md                        # Política de seguridad y hardening
 │   ├── decisions/
 │   │   └── ADR-001-network-modes.md       # Decisión arquitectónica sobre modos de red
-│   └── audits/
-│       └── 2026-11-24-system-audit.md     # Registro histórico de la auditoría técnica
+│   ├── audits/
+│   │   ├── 2026-11-24-system-audit.md     # Registro histórico de la auditoría técnica
+│   │   └── 2026-11-26-nomad-deployment.md # Despliegue físico NOMAD validado por el propietario
+│   └── development/
+│       └── HANDOFF.md                     # Registro de cierre y transferencia
 ├── software/
 │   ├── scripts/
 │   │   ├── dorsett-network.sh             # CLI de gestión de red y fallback
@@ -149,19 +186,27 @@ dorsett-cyberdeck/
 
 ## Instalación en Raspberry Pi
 
-Desde la raíz de la copia del repositorio en la Pi, ejecuta `bash install.sh --check` y luego `sudo bash install.sh`. Configura el perfil HOME local y valida el AP con recuperación temporizada antes de habilitar el fallback. [Guía de instalación y prueba](docs/INSTALLATION.md)
+Desde la raíz de la copia del repositorio en la Pi, ejecuta `bash install.sh --check` y luego `sudo bash install.sh`. Configura el perfil HOME local y valida el AP con recuperación temporizada antes de habilitar el fallback. El procedimiento quedó validado físicamente por el propietario el 26 de noviembre de 2026. [Guía de instalación y prueba](docs/INSTALLATION.md)
 
 ---
 
 ## Roadmap resumido
 
 - **v0.1.0 – v0.3.0:** acceso remoto (SSH/WayVNC), NAS Samba y estabilidad de perfil doméstico *(completado)*.
-- **v0.4.0 (en curso):** *Nomad Update* — modos `HOME`/`MOBILE`/`NOMAD`, *fallback* al arranque y herramientas de diagnóstico.
-- **v0.5.0 – v0.6.0:** recuperación dinámica ante caídas de red e interfaz gráfica de administración.
-- **v0.7.0 – v1.0.0:** nodos IoT (GreenNode, robótica), chasis modular con disipación térmica, alimentación por baterías e integración CyberDeck autónoma.
-- **Largo plazo:** IA local con Ollama + Piper TTS (**Scio**), autenticación física NFC/RFID, cifrado de almacenamiento y modo `BRIDGE` multi-radio.
+- **v0.4.0 — Nomad Update:** modos `HOME`/`NOMAD` y *fallback* al arranque *(validado en hardware)*; `MOBILE` queda pendiente.
+- **v0.5.0 – v0.6.0:** recuperación dinámica ante caídas de red e interfaz gráfica de administración *(pendiente)*.
+- **v0.7.0 – v1.0.0:** nodos IoT y robótica, chasis modular con disipación térmica, pantalla HDMI directa y alimentación por baterías *(objetivos futuros)*.
+- **Integración futura con Scio Control Center**, inicialmente alojado en Dorsett como proyecto de software independiente.
 
 Consulta el detalle completo en [ROADMAP.md](ROADMAP.md) y el historial en [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Relación con Scio
+
+Dorsett es la **plataforma física y operativa**: una CyberDeck modular, autónoma y experimental. **Scio Control Center** será un proyecto de software independiente, inicialmente alojado en Dorsett; no se incorpora código de Scio a este repositorio.
+
+Entre los objetivos futuros se encuentran la integración con Scio Control Center, la administración gráfica de conectividad, una pantalla HDMI directa para reducir la dependencia de VNC, la integración de dispositivos IoT y robótica, y la alimentación portátil.
 
 ---
 
